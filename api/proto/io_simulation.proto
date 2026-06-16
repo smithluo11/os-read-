@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package io_simulator;
+
+// 设置 Go 生成代码的包路径
+option go_package = "./api/pb";
+
+service IOSimulationEngine {
+  // 双向流通信：前端发送控制，后端推送状态
+  rpc StreamSimulation(stream SimControlCommand) returns (stream SystemSnapshot);
+}
+
+message SimControlCommand {
+  enum Action {
+    ACTION_INIT = 0;
+    ACTION_STEP_NEXT = 1;
+    ACTION_INJECT_FAULT = 2;
+  }
+  Action action = 1;
+  ReadRequestConfig config = 2;
+  FaultType injected_fault = 3;
+}
+
+message ReadRequestConfig {
+  string file_path = 1;
+  uint32 bytes_to_read = 2;
+  uint64 user_buffer_addr = 3;
+  bool use_double_buffer = 4;
+}
+
+enum FaultType {
+  FAULT_NONE = 0;
+  FAULT_PERMISSION_DENIED = 1;
+  FAULT_INVALID_ADDRESS = 2;
+  FAULT_HARDWARE_TIMEOUT = 3;
+}
+
+message SystemSnapshot {
+  enum Layer {
+    LAYER_USER = 0;
+    LAYER_INDEPENDENT = 1;
+    LAYER_DRIVER = 2;
+    LAYER_INTERRUPT = 3;
+    LAYER_HARDWARE = 4;
+  }
+  Layer current_active_layer = 1;
+  string step_description = 2;
+  ProcessBlock process_state = 3;
+  MemoryView memory_state = 4;
+  HardwareView hardware_state = 5;
+  bool is_finished = 6;
+  string final_error_code = 7;
+}
+
+message ProcessBlock {
+  uint32 pid = 1;
+  enum State { STATE_RUNNING = 0; STATE_BLOCKED = 1; STATE_READY = 2; }
+  State state = 2;
+  string wait_reason = 3;
+}
+
+message MemoryView {
+  bytes user_buffer_data = 1;
+  bytes kernel_buffer_1_data = 2;
+  bytes kernel_buffer_2_data = 3;
+  string current_irp_info = 4;
+}
+
+message HardwareView {
+  string cmd_register = 1;
+  string status_register = 2;
+  bytes data_register = 3;
+}
