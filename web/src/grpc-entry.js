@@ -1,84 +1,99 @@
-// gRPC-Web client entry — wraps generated code for browser
-
-const { GrpcWebClientBase } = require('grpc-web');
-const pb = require('./generated/io_simulation_pb.js');
+// gRPC-Web bidi streaming client — uses @improbable-eng/grpc-web (matches Go grpcweb.WrapServer)
+const { grpc } = require('@improbable-eng/grpc-web');
+const proto = require('./generated/io_simulation_pb.js');
 
 window.IOSim = {
-    pb: pb,
+    pb: proto,
 
-    /** Connect to a gRPC-Web endpoint.
-     *  Returns a bidirectional stream handle:
-     *    stream.send(cmd) — write a SimControlCommand
-     *    stream.onSnapshot(fn) — register SystemSnapshot callback
-     *    stream.onError(fn)
-     *    stream.onEnd(fn)
-     *    stream.close()
+    /** Connect to the backend gRPC-Web bidirectional stream.
+     *  Returns a handle: { send(cmd), onSnapshot(fn), onError(fn), onEnd(fn), close() }
      */
     connect(hostname) {
-        const client = new GrpcWebClientBase({ format: 'text' });
-        const method = '/io_simulator.IOSimulationEngine/StreamSimulation';
+        // Strip trailing slash from hostname (e.g., "http://localhost:18083/")
+        const host = hostname.replace(/\/+$/, '');
 
-        // serverStreaming with no request body opens a bidi channel.
-        // We pass an empty message as placeholder — grpc-web requires a request
-        // for the initial frame, even for bidi.
-        const emptyReq = new pb.SimControlCommand();
-        // Set a dummy action so the proto isn't empty
-        emptyReq.setAction(0);
+        const methodDef = {
+            methodName: 'StreamSimulation',
+            service: { serviceName: 'io_simulator.IOSimulationEngine' },
+            requestStream: true,
+            responseStream: true,
+            requestType: proto.SimControlCommand,
+            responseType: proto.SystemSnapshot,
+        };
 
-        const stream = client.serverStreaming(method, emptyReq, null);
+        const client = grpc.client(methodDef, {
+            host: host,
+            transport: grpc.WebsocketTransport(),
+        });
 
-        const handle = {
-            _stream: stream,
+        let onMsgCb = null;
+        let onErrCb = null;
+        let onEndCb = null;
+
+        client.onMessage(function (msg) {
+            if (onMsgCb) onMsgCb(msg);
+        });
+
+        client.onEnd(function (code, msg) {
+            if (code !== 0) {
+                if (onErrCb) onErrCb({ message: msg || ('gRPC error code: ' + code) });
+            } else {
+                if (onEndCb) onEndCb();
+            }
+        });
+
+        client.start();
+
+        return {
+            _client: client,
 
             send(cmd) {
-                stream.write(cmd);
+                client.send(cmd);
             },
 
             onSnapshot(fn) {
-                stream.on('data', fn);
+                onMsgCb = fn;
             },
 
             onError(fn) {
-                stream.on('error', fn);
+                onErrCb = fn;
             },
 
             onEnd(fn) {
-                stream.on('end', fn);
+                onEndCb = fn;
             },
 
             close() {
-                stream.cancel();
+                client.close();
             }
         };
-
-        return handle;
     },
 
-    // ---- Convenience factories for protobuf messages ----
+    // ---- Factories ----
 
     newInitCommand(config, userContext) {
-        const cmd = new pb.SimControlCommand();
-        cmd.setAction(pb.SimControlCommand.Action.ACTION_INIT);
+        const cmd = new proto.SimControlCommand();
+        cmd.setAction(0); // ACTION_INIT
         cmd.setConfig(config);
         if (userContext) cmd.setUserContext(userContext);
         return cmd;
     },
 
     newStepCommand() {
-        const cmd = new pb.SimControlCommand();
-        cmd.setAction(pb.SimControlCommand.Action.ACTION_STEP_NEXT);
+        const cmd = new proto.SimControlCommand();
+        cmd.setAction(1); // ACTION_STEP_NEXT
         return cmd;
     },
 
     newInjectFaultCommand(faultType) {
-        const cmd = new pb.SimControlCommand();
-        cmd.setAction(pb.SimControlCommand.Action.ACTION_INJECT_FAULT);
+        const cmd = new proto.SimControlCommand();
+        cmd.setAction(2); // ACTION_INJECT_FAULT
         cmd.setInjectedFault(faultType);
         return cmd;
     },
 
     newReadConfig(filePath, bytesToRead, userBufferAddr, useDoubleBuffer) {
-        const cfg = new pb.ReadRequestConfig();
+        const cfg = new proto.ReadRequestConfig();
         cfg.setFilePath(filePath);
         cfg.setBytesToRead(bytesToRead);
         cfg.setUserBufferAddr(userBufferAddr);
@@ -87,7 +102,7 @@ window.IOSim = {
     },
 
     newUserContext(uid, gid, username, homeDir) {
-        const ctx = new pb.UserContext();
+        const ctx = new proto.UserContext();
         ctx.setUid(uid);
         ctx.setGid(gid);
         ctx.setUsername(username);
@@ -95,5 +110,5 @@ window.IOSim = {
         return ctx;
     },
 
-    FaultType: pb.FaultType,
+    FaultType: proto.FaultType,
 };

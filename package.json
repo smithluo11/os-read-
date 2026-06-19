@@ -19,8 +19,8 @@
   },
   "homepage": "https://github.com/smithluo11/os-read-#readme",
   "dependencies": {
+    "@improbable-eng/grpc-web": "^0.15.0",
     "esbuild": "^0.28.1",
-    "google-protobuf": "^4.0.2",
-    "grpc-web": "^2.0.2"
+    "google-protobuf": "^4.0.2"
   }
 }

@@ -24,28 +24,32 @@ func main() {
 	wrappedGrpc := grpcweb.WrapServer(grpcServer,
 		grpcweb.WithOriginFunc(func(origin string) bool { return true }), // 允许所有跨域请求
 		grpcweb.WithAllowedRequestHeaders([]string{"*"}),                 // 允许所有请求头
+		grpcweb.WithWebsockets(true),                                     // 启用 WebSocket 支持（bidi streaming 必需）
+		grpcweb.WithWebsocketOriginFunc(func(req *http.Request) bool { return true }),
 	)
 
 	// 4. 创建一个标准 HTTP 处理器，将流量分发给 grpc-web
 	handler := func(res http.ResponseWriter, req *http.Request) {
-		// 如果是前端 gRPC-Web 发来的请求，交给 wrappedGrpc 处理
-		if wrappedGrpc.IsGrpcWebRequest(req) || wrappedGrpc.IsAcceptableGrpcCorsRequest(req) {
+		// gRPC-Web、CORS preflight、WebSocket upgrade 均由 ServeHTTP 内部统一处理
+		if wrappedGrpc.IsGrpcWebRequest(req) ||
+			wrappedGrpc.IsAcceptableGrpcCorsRequest(req) ||
+			wrappedGrpc.IsGrpcWebSocketRequest(req) {
 			wrappedGrpc.ServeHTTP(res, req)
 			return
 		}
-		// 其他普通 HTTP 请求（你甚至以后可以在这里托管编译好的前端静态文件）
+		// 其他普通 HTTP 请求
 		http.DefaultServeMux.ServeHTTP(res, req)
 	}
 
-	// 5. 启动 HTTP 服务，监听 8080 端口
+	// 5. 启动 HTTP 服务，监听 18083 端口
 	httpServer := &http.Server{
 		Addr:    ":18083",
 		Handler: http.HandlerFunc(handler),
 	}
 
 	log.Println("🚀 I/O 模拟器后端已启动！")
-	log.Println("✅ 正在监听端口 :18083 (支持 gRPC-Web 与 CORS 跨域)")
-	
+	log.Println("✅ 正在监听端口 :18083 (支持 gRPC-Web + WebSocket + CORS)")
+
 	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatalf("服务器启动失败: %v", err)
 	}
