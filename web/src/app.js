@@ -156,9 +156,22 @@ function onSnapshot(snapMsg) {
         updateKbuf($('kbuf2'), 2, mem);
 
         if (mem.userBufferData) {
-            let text = typeof mem.userBufferData === 'string' ? mem.userBufferData : new TextDecoder().decode(mem.userBufferData);
-            $('ubuf-display').textContent = text;
-            $('ubuf-len').textContent = text.length;
+            let raw = mem.userBufferData;
+            let bytes;
+            if (typeof raw === 'string') {
+                // protobuf-js 可能将 bytes 字段以 base64 返回，atob 解码得到原始字节
+                try {
+                    let bin = atob(raw);
+                    bytes = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xFF;
+                } catch(e) {
+                    bytes = new TextEncoder().encode(raw);
+                }
+            } else {
+                bytes = new Uint8Array(raw);
+            }
+            $('ubuf-display').textContent = new TextDecoder().decode(bytes);
+            $('ubuf-len').textContent = bytes.byteLength;
         }
 
         const total = mem.totalChunks || 1;
