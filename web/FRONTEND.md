@@ -511,3 +511,274 @@ function updateLayerHighlight(snapshot) {
 ```
 
 当单缓冲模式时，DMA 管道和 CPU 管道不重叠，直观对比出双缓冲的并发优势。
+
+---
+
+## 10. 动画策略 — 离散 Snapshot 到丝滑过渡
+
+### 10.1 后端数据特征分析
+
+后端是**纯事件驱动**模型：每次 `ACTION_STEP_NEXT` 产生恰好一个 `SystemSnapshot`，
+没有帧率概念，没有时间戳，没有中间态。
+
+```
+后端数据流:
+STEP_NEXT → Snapshot{t0}
+STEP_NEXT → Snapshot{t1}    ← 两次 snapshot 之间时间间隔由用户点击速度决定
+STEP_NEXT → Snapshot{t2}
+```
+
+**关键结论**：后端不需要改任何字段。`SystemSnapshot` 已包含前端做动画所需的**全部状态端点**。
+前端只需在两个离散端点之间插入 CSS 缓动 / JS 动画帧。
+
+### 10.2 可动画的状态变化量
+
+每次 snapshot 到达时，对比上一帧，以下是前端可以驱动动画的 diff 维度：
+
+| 变化字段 | 变化模式 | 动画方式 |
+|----------|---------|---------|
+| `current_active_layer` | 枚举跳变 (0→1→2→4→3→2↻) | 高亮光晕从旧卡片移动到新卡片 |
+| `active_write_buffer` | 1↔2 翻转 | 缓冲区卡片边框颜色渐变 |
+| `active_read_buffer` | 1↔2 翻转 | 缓冲区卡片边框颜色渐变 |
+| `current_chunk` | 递增 0→1→2→3 | 进度条平滑增长 |
+| `process_state.state` | RUNNING→BLOCKED→RUNNING | 状态标签颜色过渡 + 图标切换 |
+| `hardware_state.status_register` | 字符串变化 | 寄存器值跳动 (数字翻转牌效果) |
+| `hardware_state.cmd_register` | 字符串变化 | 同上 |
+| `user_buffer_data.length` | 逐步增长 (append) | 字节计数滚动数字 |
+| `kernel_buffer_*_data` | 交替非空 | 缓冲区内容淡入 |
+| `is_finished` | false→true | 全部卡片归位动画 |
+| `final_error_code` | SUCCESS→错误码 | 红色遮罩弹出 |
+
+### 10.3 核心动画配方
+
+#### 层级联动光晕 (Layer Highlight Transition)
+
+```css
+/* 每个层级卡片的基础样式 */
+.layer-card {
+    transition: box-shadow 0.4s ease-out,
+                border-color 0.4s ease-out,
+                transform 0.3s ease-out;
+    border: 2px solid #334155;
+}
+.layer-card.active {
+    border-color: #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    transform: scale(1.03);
+}
+.layer-card.error {
+    border-color: #ef4444;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.7);
+    animation: error-pulse 0.6s ease-in-out 3;
+}
+.layer-card.complete {
+    border-color: #22c55e;
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.4);
+}
+
+@keyframes error-pulse {
+    0%, 100% { box-shadow: 0 0 24px rgba(239, 68, 68, 0.7); }
+    50%      { box-shadow: 0 0 40px rgba(239, 68, 68, 1.0); }
+}
+```
+
+CSS `transition` 在 class 变化时自动做 0.4s 缓动，无需 JS 动画库。
+前端只需在收到新 snapshot 时更新 class：
+
+```js
+let prevSnapshot = null;
+
+function applySnapshot(snap) {
+    const prev = prevSnapshot;
+
+    // 层级光晕移动
+    document.querySelectorAll('.layer-card').forEach(el =>
+        el.classList.remove('active', 'error', 'complete'));
+    const activeEl = document.getElementById(layerId(snap.currentActiveLayer));
+    if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') {
+        activeEl.classList.add('error');
+    } else if (snap.isFinished) {
+        activeEl.classList.add('complete');
+    } else {
+        activeEl.classList.add('active');
+    }
+
+    // 缓冲区颜色：由 CSS transition 自动处理
+    updateBufferColors(snap.memoryState);
+
+    prevSnapshot = snap;
+}
+```
+
+#### 缓冲区颜色渐变 (Buffer Color Transition)
+
+```css
+.kernel-buffer {
+    transition: background-color 0.5s ease-out,
+                border-color 0.5s ease-out,
+                box-shadow 0.5s ease-out;
+}
+.kernel-buffer.write-target {
+    background: rgba(34, 197, 94, 0.15);   /* 绿色底 — DMA 写入 */
+    border-color: #22c55e;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+}
+.kernel-buffer.read-source {
+    background: rgba(59, 130, 246, 0.15);  /* 蓝色底 — CPU 拷贝 */
+    border-color: #3b82f6;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+.kernel-buffer.idle {
+    background: rgba(100, 116, 139, 0.08); /* 灰色 — 空闲 */
+    border-color: #64748b;
+    box-shadow: none;
+}
+```
+
+```js
+function updateBufferColors(mem) {
+    const buf1 = document.getElementById('buffer-1');
+    const buf2 = document.getElementById('buffer-2');
+    [buf1, buf2].forEach(b => b.classList.remove('write-target', 'read-source', 'idle'));
+
+    buf1.classList.add(getBufferRole(1, mem));
+    buf2.classList.add(getBufferRole(2, mem));
+}
+
+function getBufferRole(id, mem) {
+    if (id === mem.activeWriteBuffer) return 'write-target';
+    if (id === mem.activeReadBuffer) return 'read-source';
+    return 'idle';
+}
+```
+
+#### 进度条平滑增长
+
+```css
+.progress-fill {
+    transition: width 0.5s ease-out;
+}
+```
+
+```js
+const pct = ((snap.memoryState.currentChunk + 1) / snap.memoryState.totalChunks) * 100;
+document.getElementById('progress-fill').style.width = `${pct}%`;
+```
+
+#### IRQ 中断信号线绘制动画
+
+```css
+.irq-line {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    transition: stroke-dashoffset 0.6s ease-out;
+}
+.irq-line.active {
+    stroke-dashoffset: 0;
+    stroke: #ef4444;
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.8));
+}
+```
+
+#### 乒乓回溯虚线动画
+
+```css
+.pingpong-arrow {
+    stroke-dasharray: 8 4;
+    stroke-dashoffset: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+}
+.pingpong-arrow.visible {
+    opacity: 1;
+    animation: dash-flow 0.8s linear infinite;
+}
+
+@keyframes dash-flow {
+    to { stroke-dashoffset: -24; }
+}
+```
+
+```js
+// 在 snapshot 处理中检测乒乓回溯
+if (prev && prev.currentActiveLayer === 'INTERRUPT'
+    && snap.currentActiveLayer === 'DRIVER'
+    && snap.memoryState.currentChunk > 0) {
+    document.getElementById('pingpong-arrow').classList.add('visible');
+    setTimeout(() => {
+        document.getElementById('pingpong-arrow').classList.remove('visible');
+    }, 1200);
+}
+```
+
+### 10.4 数据流入粒子动画
+
+从硬件层到内核缓冲区之间，可以画一条粒子管道：
+
+```js
+// 使用 Canvas 或 SVG，在 requestAnimationFrame 中逐帧更新粒子位置
+const particles = [];
+const PATH_POINTS = [
+    {x: 400, y: 200},  // 硬件层出口
+    {x: 400, y: 350},  // 内核缓冲区入口
+];
+
+function spawnParticles(count) {
+    for (let i = 0; i < count; i++) {
+        particles.push({ t: i / count, speed: 0.003 + Math.random() * 0.005 });
+    }
+}
+
+function animateParticles() {
+    particles.forEach(p => {
+        p.t += p.speed;
+        if (p.t > 1) p.t -= 1; // 循环
+        const pos = lerpPath(PATH_POINTS, p.t);
+        drawParticle(pos.x, pos.y);
+    });
+    requestAnimationFrame(animateParticles);
+}
+
+// 当 active_write_buffer 变化时触发粒子生成
+if (mem.activeWriteBuffer !== prevMem?.activeWriteBuffer) {
+    spawnParticles(30);
+}
+```
+
+### 10.5 动画时序总览
+
+以一次完整的双缓冲 16KB 读取为例（4 chunks，14 个 snapshot）：
+
+```
+Snapshot  LAYER        触发的前端动画                   CSS 时长
+────────  ────────────  ──────────────────────────────  ────────
+S0        USER          用户卡片高亮 + 按钮禁用         0.4s
+S1        INDEPENDENT   光晕移到 VFS → 6级校验逐条亮起  0.4s x 6
+                        IRP 数据包飞向驱动层            0.5s
+S2        DRIVER        光晕移到驱动 → cmd 寄存器跳动   0.4s
+                        process 变 BLOCKED (橙色)      0.3s
+S3        HARDWARE      data_register 填充动画          0.3s
+                        粒子从磁盘流入 Buffer 1         持续
+S4        INTERRUPT     IRQ 红线闪烁拉通                0.6s
+                        Buffer1 绿→蓝 (角色切换)        0.5s
+                        UserBuffer 字节计数跳动         0.4s
+S5        DRIVER ←──    乒乓回溯虚线 (关键!)            0.8s
+                        Buffer2 变绿色 DMA 目标         0.5s
+S6        HARDWARE      粒子流入 Buffer 2               持续
+S7        INTERRUPT     IRQ 再次触发                    0.6s
+                        Buffer2 绿→蓝                   0.5s
+S8        DRIVER ←──    乒乓回溯                        0.8s
+...循环...
+S13       INTERRUPT     is_finished=true                —
+                        所有卡片绿色完成动画            0.5s
+                        process RUNNING (绿色)          0.3s
+                        大屏弹出 "读取 16384 字节成功"  0.6s
+```
+
+### 10.6 关键原则
+
+1. **所有动画都发生在两次 Snapshot 之间的"间隙"**：前端收到新 Snapshot → 触发 CSS transition / JS 动画 → 动画结束，等待用户下一次点击
+2. **后端不需任何改动**：`SystemSnapshot` 的离散状态端点已经足够驱动全部过渡动画
+3. **动画时长控制在 300-800ms**：太短看不清联动，太长拖慢答辩节奏
+4. **乒乓回溯虚线是最关键的视觉锚点**：它让学生/老师直观理解「中断层如何重新触发驱动层」
+5. **差错熔断用 3 次红色脉冲 (`error-pulse`)**：视觉冲击力强，一眼看出「出错了」
