@@ -5,7 +5,7 @@ import (
 	"io"
 	"log"
 
-	"io-simulator/api/pb" // 确保这里的 module name 和你 go.mod 里的一致
+	"io-simulator/api/pb" 
 	"io-simulator/internal/engine"
 )
 
@@ -35,8 +35,22 @@ func (s *IOSimulationService) StreamSimulation(stream pb.IOSimulationEngine_Stre
 		switch req.Action {
 		case pb.SimControlCommand_ACTION_INIT:
 			log.Printf("收到初始化请求: 读取文件 %s, 大小 %d 字节", req.Config.FilePath, req.Config.BytesToRead)
+
+			// 提取用户上下文，若前端未传则默认普通用户 user1
+			userCtx := req.UserContext
+			if userCtx == nil {
+				userCtx = &pb.UserContext{
+					Uid:      1000,
+					Gid:      1000,
+					Username: "user1",
+					HomeDir:  "/home/user1",
+				}
+			}
+			log.Printf("用户上下文: uid=%d gid=%d username=%s home=%s",
+				userCtx.Uid, userCtx.Gid, userCtx.Username, userCtx.HomeDir)
+
 			// 实例化新的状态机
-			simEngine = engine.NewEngine(req.Config)
+			simEngine = engine.NewEngine(req.Config, userCtx)
 			// 把初始状态推给前端
 			if err := stream.Send(simEngine.Snapshot); err != nil {
 				return err
