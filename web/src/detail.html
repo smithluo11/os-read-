@@ -30,7 +30,7 @@
 
   .detail-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 7fr 3fr;
     gap: 24px; padding: 24px;
     height: calc(100vh - 56px);
     box-sizing: border-box;
@@ -56,7 +56,7 @@
 
   /* Mini topology */
   .mini-topo {
-    position: relative; width: 100%; height: 200px;
+    position: relative; width: 100%; height: 320px;
     background: var(--bg-deep); border-radius: var(--radius);
     border: 1px solid var(--border-light); margin-bottom: 16px;
     overflow: hidden;
@@ -168,7 +168,7 @@
 var layers = {
   USER: {
     tag: 'L0', name: '用户层 I/O 软件',
-    yPos: '15px', label: 'sys_read(fd, buf, len)',
+    yPos: '10px', label: 'sys_read(fd, buf, len)',
     input:  { text: '用户进程调用', detail: 'read(fd, buf, len) → int 0x80' },
     output: { text: 'IRP ↓ 到 VFS', detail: '文件描述符 + 缓冲区地址 + 长度' },
     ops: [
@@ -184,7 +184,7 @@ var layers = {
   },
   VFS: {
     tag: 'L1', name: '设备无关软件 (VFS)',
-    yPos: '65px', label: '路径解析 + 权限校验 + 缓冲分配',
+    yPos: '90px', label: '路径解析 + 权限校验 + 缓冲分配',
     input:  { text: 'IRP ← 用户层', detail: '{fd, buf, len, uid, gid}' },
     output: { text: 'IRP ↓ 到驱动层', detail: '{inode, kbuf, sector, len}' },
     ops: [
@@ -200,7 +200,7 @@ var layers = {
   },
   DRV: {
     tag: 'L2', name: '设备驱动程序',
-    yPos: '115px', label: '构造 IRP + 写寄存器 + 阻塞等待',
+    yPos: '170px', label: '构造 IRP + 写寄存器 + 阻塞等待',
     input:  { text: 'IRP ← VFS', detail: '{inode, kbuf, sector, len}' },
     output: { text: 'CMD ↓ 到硬件', detail: 'CMD_READ + 扇区地址 → 设备寄存器' },
     ops: [
@@ -216,7 +216,7 @@ var layers = {
   },
   INT: {
     tag: 'L3', name: '中断处理程序 (ISR)',
-    yPos: '150px', label: 'IRQ 响应 + 唤醒进程 + 数据拷贝',
+    yPos: '230px', label: 'IRQ 响应 + 唤醒进程 + 数据拷贝',
     input:  { text: 'IRQ ← 硬件层', detail: '中断向量号 IRQ_DISK' },
     output: { text: '唤醒信号 ↑ 到驱动', detail: 'wake_up_process(driver_task)' },
     ops: [
@@ -232,7 +232,7 @@ var layers = {
   },
   HW: {
     tag: 'L4', name: '硬件层 (磁盘控制器)',
-    yPos: '175px', label: 'DMA 数据读取 + IRQ 发送',
+    yPos: '280px', label: 'DMA 数据读取 + IRQ 发送',
     input:  { text: 'CMD ← 驱动层', detail: 'CMD_READ + 扇区地址 → 设备寄存器' },
     output: { text: 'IRQ ↑ 到中断层', detail: 'STS_DATA_READY → send_irq(IRQ_DISK)' },
     ops: [
