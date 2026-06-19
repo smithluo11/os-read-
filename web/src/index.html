@@ -71,6 +71,23 @@
     height: 750px;
     flex-shrink: 0;
   }
+
+  .site-footer {
+    text-align: center;
+    padding: 8px 24px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+  }
+  .site-footer a {
+    color: var(--phosphor);
+    text-decoration: none;
+  }
+  .site-footer a:hover {
+    text-decoration: underline;
+  }
 </style>
 </head>
 <body>
@@ -208,6 +225,10 @@
     </div>
   </aside>
 </div>
+
+<footer class="site-footer">
+  <a href="https://github.com/smithluo11/os-read-" target="_blank" rel="noopener">View Source on GitHub</a>
+</footer>
 
 <script src="bundle.js"></script>
 <script src="app.js"></script>
