@@ -56,8 +56,7 @@ function triggerInit() {
 }
 
 function connectAndInit() {
-    const host = cfgHost.value.trim();
-    if (!host) return log('错误: 未填写后端地址');
+    const host = cfgHost.value.trim() || window.location.origin;
     
     // 如果已经连接，直接发起初始化
     if (streamHandle && connStatus.textContent.includes('Connected')) {
