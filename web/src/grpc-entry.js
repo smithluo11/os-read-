@@ -47,8 +47,12 @@ window.IOSim = {
 
     /** Connect to gRPC-Web server via WebSocket for bidi streaming */
     connect(hostname) {
-        const host = hostname.replace(/\/+$/, '');
-        const wsUrl = host.replace(/^http/, 'ws') + '/io_simulator.IOSimulationEngine/StreamSimulation';
+        // 空值或相对路径 → 自动使用当前页面域名 (兼容 HTTP/HTTPS)
+        var host = (hostname || '').replace(/\/+$/, '');
+        if (!host || host.startsWith('/')) {
+            host = window.location.origin;
+        }
+        var wsUrl = host.replace(/^http/, 'ws') + '/io_simulator.IOSimulationEngine/StreamSimulation';
 
         const ws = new WebSocket(wsUrl, ['grpc-websockets']);
         ws.binaryType = 'arraybuffer';
