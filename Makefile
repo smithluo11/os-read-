@@ -6,3 +6,20 @@ proto:
 	       --go-grpc_out=api/pb --go-grpc_opt=paths=source_relative \
 	       api/proto/io_simulation.proto
 	@echo "Proto code generated successfully!"
+
+# ==============================================================================
+# Docker Deployment Targets
+# ==============================================================================
+
+.PHONY: docker-build docker-up docker-down docker-logs
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f

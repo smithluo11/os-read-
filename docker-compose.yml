@@ -1,0 +1,23 @@
+services:
+  backend:
+    build: .
+    container_name: io-sim-backend
+    networks:
+      - io-sim-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: io-sim-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./web/src:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    networks:
+      - io-sim-net
+
+networks:
+  io-sim-net:
+    driver: bridge

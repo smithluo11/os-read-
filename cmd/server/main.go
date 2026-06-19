@@ -39,12 +39,12 @@ func main() {
 
 	// 5. 启动 HTTP 服务，监听 8080 端口
 	httpServer := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":18083",
 		Handler: http.HandlerFunc(handler),
 	}
 
 	log.Println("🚀 I/O 模拟器后端已启动！")
-	log.Println("✅ 正在监听端口 :8080 (支持 gRPC-Web 与 CORS 跨域)")
+	log.Println("✅ 正在监听端口 :18083 (支持 gRPC-Web 与 CORS 跨域)")
 	
 	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatalf("服务器启动失败: %v", err)
