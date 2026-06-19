@@ -19,6 +19,7 @@ message SimControlCommand {
   Action action = 1;
   ReadRequestConfig config = 2;
   FaultType injected_fault = 3;
+  UserContext user_context = 4;
 }
 
 message ReadRequestConfig {
@@ -33,6 +34,15 @@ enum FaultType {
   FAULT_PERMISSION_DENIED = 1;
   FAULT_INVALID_ADDRESS = 2;
   FAULT_HARDWARE_TIMEOUT = 3;
+  FAULT_PATH_TRAVERSAL = 4;
+  FAULT_FILE_NOT_FOUND = 5;
+}
+
+message UserContext {
+  uint32 uid = 1;
+  uint32 gid = 2;
+  string username = 3;
+  string home_dir = 4;
 }
 
 message SystemSnapshot {
@@ -64,6 +74,10 @@ message MemoryView {
   bytes kernel_buffer_1_data = 2;
   bytes kernel_buffer_2_data = 3;
   string current_irp_info = 4;
+  int32 active_write_buffer = 5;
+  int32 active_read_buffer = 6;
+  int32 current_chunk = 7;
+  int32 total_chunks = 8;
 }
 
 message HardwareView {

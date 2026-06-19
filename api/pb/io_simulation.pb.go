@@ -28,6 +28,8 @@ const (
 	FaultType_FAULT_PERMISSION_DENIED FaultType = 1
 	FaultType_FAULT_INVALID_ADDRESS   FaultType = 2
 	FaultType_FAULT_HARDWARE_TIMEOUT  FaultType = 3
+	FaultType_FAULT_PATH_TRAVERSAL    FaultType = 4
+	FaultType_FAULT_FILE_NOT_FOUND    FaultType = 5
 )
 
 // Enum value maps for FaultType.
@@ -37,12 +39,16 @@ var (
 		1: "FAULT_PERMISSION_DENIED",
 		2: "FAULT_INVALID_ADDRESS",
 		3: "FAULT_HARDWARE_TIMEOUT",
+		4: "FAULT_PATH_TRAVERSAL",
+		5: "FAULT_FILE_NOT_FOUND",
 	}
 	FaultType_value = map[string]int32{
 		"FAULT_NONE":              0,
 		"FAULT_PERMISSION_DENIED": 1,
 		"FAULT_INVALID_ADDRESS":   2,
 		"FAULT_HARDWARE_TIMEOUT":  3,
+		"FAULT_PATH_TRAVERSAL":    4,
+		"FAULT_FILE_NOT_FOUND":    5,
 	}
 )
 
@@ -174,7 +180,7 @@ func (x SystemSnapshot_Layer) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SystemSnapshot_Layer.Descriptor instead.
 func (SystemSnapshot_Layer) EnumDescriptor() ([]byte, []int) {
-	return file_io_simulation_proto_rawDescGZIP(), []int{2, 0}
+	return file_io_simulation_proto_rawDescGZIP(), []int{3, 0}
 }
 
 type ProcessBlock_State int32
@@ -223,7 +229,7 @@ func (x ProcessBlock_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ProcessBlock_State.Descriptor instead.
 func (ProcessBlock_State) EnumDescriptor() ([]byte, []int) {
-	return file_io_simulation_proto_rawDescGZIP(), []int{3, 0}
+	return file_io_simulation_proto_rawDescGZIP(), []int{4, 0}
 }
 
 type SimControlCommand struct {
@@ -231,6 +237,7 @@ type SimControlCommand struct {
 	Action        SimControlCommand_Action `protobuf:"varint,1,opt,name=action,proto3,enum=io_simulator.SimControlCommand_Action" json:"action,omitempty"`
 	Config        *ReadRequestConfig       `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`
 	InjectedFault FaultType                `protobuf:"varint,3,opt,name=injected_fault,json=injectedFault,proto3,enum=io_simulator.FaultType" json:"injected_fault,omitempty"`
+	UserContext   *UserContext             `protobuf:"bytes,4,opt,name=user_context,json=userContext,proto3" json:"user_context,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -284,6 +291,13 @@ func (x *SimControlCommand) GetInjectedFault() FaultType {
 		return x.InjectedFault
 	}
 	return FaultType_FAULT_NONE
+}
+
+func (x *SimControlCommand) GetUserContext() *UserContext {
+	if x != nil {
+		return x.UserContext
+	}
+	return nil
 }
 
 type ReadRequestConfig struct {
@@ -354,6 +368,74 @@ func (x *ReadRequestConfig) GetUseDoubleBuffer() bool {
 	return false
 }
 
+type UserContext struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uid           uint32                 `protobuf:"varint,1,opt,name=uid,proto3" json:"uid,omitempty"`
+	Gid           uint32                 `protobuf:"varint,2,opt,name=gid,proto3" json:"gid,omitempty"`
+	Username      string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	HomeDir       string                 `protobuf:"bytes,4,opt,name=home_dir,json=homeDir,proto3" json:"home_dir,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserContext) Reset() {
+	*x = UserContext{}
+	mi := &file_io_simulation_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserContext) ProtoMessage() {}
+
+func (x *UserContext) ProtoReflect() protoreflect.Message {
+	mi := &file_io_simulation_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserContext.ProtoReflect.Descriptor instead.
+func (*UserContext) Descriptor() ([]byte, []int) {
+	return file_io_simulation_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *UserContext) GetUid() uint32 {
+	if x != nil {
+		return x.Uid
+	}
+	return 0
+}
+
+func (x *UserContext) GetGid() uint32 {
+	if x != nil {
+		return x.Gid
+	}
+	return 0
+}
+
+func (x *UserContext) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *UserContext) GetHomeDir() string {
+	if x != nil {
+		return x.HomeDir
+	}
+	return ""
+}
+
 type SystemSnapshot struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	CurrentActiveLayer SystemSnapshot_Layer   `protobuf:"varint,1,opt,name=current_active_layer,json=currentActiveLayer,proto3,enum=io_simulator.SystemSnapshot_Layer" json:"current_active_layer,omitempty"`
@@ -369,7 +451,7 @@ type SystemSnapshot struct {
 
 func (x *SystemSnapshot) Reset() {
 	*x = SystemSnapshot{}
-	mi := &file_io_simulation_proto_msgTypes[2]
+	mi := &file_io_simulation_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -381,7 +463,7 @@ func (x *SystemSnapshot) String() string {
 func (*SystemSnapshot) ProtoMessage() {}
 
 func (x *SystemSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_io_simulation_proto_msgTypes[2]
+	mi := &file_io_simulation_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -394,7 +476,7 @@ func (x *SystemSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemSnapshot.ProtoReflect.Descriptor instead.
 func (*SystemSnapshot) Descriptor() ([]byte, []int) {
-	return file_io_simulation_proto_rawDescGZIP(), []int{2}
+	return file_io_simulation_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SystemSnapshot) GetCurrentActiveLayer() SystemSnapshot_Layer {
@@ -457,7 +539,7 @@ type ProcessBlock struct {
 
 func (x *ProcessBlock) Reset() {
 	*x = ProcessBlock{}
-	mi := &file_io_simulation_proto_msgTypes[3]
+	mi := &file_io_simulation_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -469,7 +551,7 @@ func (x *ProcessBlock) String() string {
 func (*ProcessBlock) ProtoMessage() {}
 
 func (x *ProcessBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_io_simulation_proto_msgTypes[3]
+	mi := &file_io_simulation_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -482,7 +564,7 @@ func (x *ProcessBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessBlock.ProtoReflect.Descriptor instead.
 func (*ProcessBlock) Descriptor() ([]byte, []int) {
-	return file_io_simulation_proto_rawDescGZIP(), []int{3}
+	return file_io_simulation_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ProcessBlock) GetPid() uint32 {
@@ -512,13 +594,17 @@ type MemoryView struct {
 	KernelBuffer_1Data []byte                 `protobuf:"bytes,2,opt,name=kernel_buffer_1_data,json=kernelBuffer1Data,proto3" json:"kernel_buffer_1_data,omitempty"`
 	KernelBuffer_2Data []byte                 `protobuf:"bytes,3,opt,name=kernel_buffer_2_data,json=kernelBuffer2Data,proto3" json:"kernel_buffer_2_data,omitempty"`
 	CurrentIrpInfo     string                 `protobuf:"bytes,4,opt,name=current_irp_info,json=currentIrpInfo,proto3" json:"current_irp_info,omitempty"`
+	ActiveWriteBuffer  int32                  `protobuf:"varint,5,opt,name=active_write_buffer,json=activeWriteBuffer,proto3" json:"active_write_buffer,omitempty"`
+	ActiveReadBuffer   int32                  `protobuf:"varint,6,opt,name=active_read_buffer,json=activeReadBuffer,proto3" json:"active_read_buffer,omitempty"`
+	CurrentChunk       int32                  `protobuf:"varint,7,opt,name=current_chunk,json=currentChunk,proto3" json:"current_chunk,omitempty"`
+	TotalChunks        int32                  `protobuf:"varint,8,opt,name=total_chunks,json=totalChunks,proto3" json:"total_chunks,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *MemoryView) Reset() {
 	*x = MemoryView{}
-	mi := &file_io_simulation_proto_msgTypes[4]
+	mi := &file_io_simulation_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +616,7 @@ func (x *MemoryView) String() string {
 func (*MemoryView) ProtoMessage() {}
 
 func (x *MemoryView) ProtoReflect() protoreflect.Message {
-	mi := &file_io_simulation_proto_msgTypes[4]
+	mi := &file_io_simulation_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +629,7 @@ func (x *MemoryView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryView.ProtoReflect.Descriptor instead.
 func (*MemoryView) Descriptor() ([]byte, []int) {
-	return file_io_simulation_proto_rawDescGZIP(), []int{4}
+	return file_io_simulation_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MemoryView) GetUserBufferData() []byte {
@@ -574,6 +660,34 @@ func (x *MemoryView) GetCurrentIrpInfo() string {
 	return ""
 }
 
+func (x *MemoryView) GetActiveWriteBuffer() int32 {
+	if x != nil {
+		return x.ActiveWriteBuffer
+	}
+	return 0
+}
+
+func (x *MemoryView) GetActiveReadBuffer() int32 {
+	if x != nil {
+		return x.ActiveReadBuffer
+	}
+	return 0
+}
+
+func (x *MemoryView) GetCurrentChunk() int32 {
+	if x != nil {
+		return x.CurrentChunk
+	}
+	return 0
+}
+
+func (x *MemoryView) GetTotalChunks() int32 {
+	if x != nil {
+		return x.TotalChunks
+	}
+	return 0
+}
+
 type HardwareView struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	CmdRegister    string                 `protobuf:"bytes,1,opt,name=cmd_register,json=cmdRegister,proto3" json:"cmd_register,omitempty"`
@@ -585,7 +699,7 @@ type HardwareView struct {
 
 func (x *HardwareView) Reset() {
 	*x = HardwareView{}
-	mi := &file_io_simulation_proto_msgTypes[5]
+	mi := &file_io_simulation_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +711,7 @@ func (x *HardwareView) String() string {
 func (*HardwareView) ProtoMessage() {}
 
 func (x *HardwareView) ProtoReflect() protoreflect.Message {
-	mi := &file_io_simulation_proto_msgTypes[5]
+	mi := &file_io_simulation_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +724,7 @@ func (x *HardwareView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HardwareView.ProtoReflect.Descriptor instead.
 func (*HardwareView) Descriptor() ([]byte, []int) {
-	return file_io_simulation_proto_rawDescGZIP(), []int{5}
+	return file_io_simulation_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HardwareView) GetCmdRegister() string {
@@ -638,11 +752,12 @@ var File_io_simulation_proto protoreflect.FileDescriptor
 
 const file_io_simulation_proto_rawDesc = "" +
 	"\n" +
-	"\x13io_simulation.proto\x12\fio_simulator\"\x96\x02\n" +
+	"\x13io_simulation.proto\x12\fio_simulator\"\xd4\x02\n" +
 	"\x11SimControlCommand\x12>\n" +
 	"\x06action\x18\x01 \x01(\x0e2&.io_simulator.SimControlCommand.ActionR\x06action\x127\n" +
 	"\x06config\x18\x02 \x01(\v2\x1f.io_simulator.ReadRequestConfigR\x06config\x12>\n" +
-	"\x0einjected_fault\x18\x03 \x01(\x0e2\x17.io_simulator.FaultTypeR\rinjectedFault\"H\n" +
+	"\x0einjected_fault\x18\x03 \x01(\x0e2\x17.io_simulator.FaultTypeR\rinjectedFault\x12<\n" +
+	"\fuser_context\x18\x04 \x01(\v2\x19.io_simulator.UserContextR\vuserContext\"H\n" +
 	"\x06Action\x12\x0f\n" +
 	"\vACTION_INIT\x10\x00\x12\x14\n" +
 	"\x10ACTION_STEP_NEXT\x10\x01\x12\x17\n" +
@@ -651,7 +766,12 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\tfile_path\x18\x01 \x01(\tR\bfilePath\x12\"\n" +
 	"\rbytes_to_read\x18\x02 \x01(\rR\vbytesToRead\x12(\n" +
 	"\x10user_buffer_addr\x18\x03 \x01(\x04R\x0euserBufferAddr\x12*\n" +
-	"\x11use_double_buffer\x18\x04 \x01(\bR\x0fuseDoubleBuffer\"\x88\x04\n" +
+	"\x11use_double_buffer\x18\x04 \x01(\bR\x0fuseDoubleBuffer\"h\n" +
+	"\vUserContext\x12\x10\n" +
+	"\x03uid\x18\x01 \x01(\rR\x03uid\x12\x10\n" +
+	"\x03gid\x18\x02 \x01(\rR\x03gid\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12\x19\n" +
+	"\bhome_dir\x18\x04 \x01(\tR\ahomeDir\"\x88\x04\n" +
 	"\x0eSystemSnapshot\x12T\n" +
 	"\x14current_active_layer\x18\x01 \x01(\x0e2\".io_simulator.SystemSnapshot.LayerR\x12currentActiveLayer\x12)\n" +
 	"\x10step_description\x18\x02 \x01(\tR\x0fstepDescription\x12?\n" +
@@ -676,23 +796,29 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x05State\x12\x11\n" +
 	"\rSTATE_RUNNING\x10\x00\x12\x11\n" +
 	"\rSTATE_BLOCKED\x10\x01\x12\x0f\n" +
-	"\vSTATE_READY\x10\x02\"\xc2\x01\n" +
+	"\vSTATE_READY\x10\x02\"\xe8\x02\n" +
 	"\n" +
 	"MemoryView\x12(\n" +
 	"\x10user_buffer_data\x18\x01 \x01(\fR\x0euserBufferData\x12/\n" +
 	"\x14kernel_buffer_1_data\x18\x02 \x01(\fR\x11kernelBuffer1Data\x12/\n" +
 	"\x14kernel_buffer_2_data\x18\x03 \x01(\fR\x11kernelBuffer2Data\x12(\n" +
-	"\x10current_irp_info\x18\x04 \x01(\tR\x0ecurrentIrpInfo\"\x7f\n" +
+	"\x10current_irp_info\x18\x04 \x01(\tR\x0ecurrentIrpInfo\x12.\n" +
+	"\x13active_write_buffer\x18\x05 \x01(\x05R\x11activeWriteBuffer\x12,\n" +
+	"\x12active_read_buffer\x18\x06 \x01(\x05R\x10activeReadBuffer\x12#\n" +
+	"\rcurrent_chunk\x18\a \x01(\x05R\fcurrentChunk\x12!\n" +
+	"\ftotal_chunks\x18\b \x01(\x05R\vtotalChunks\"\x7f\n" +
 	"\fHardwareView\x12!\n" +
 	"\fcmd_register\x18\x01 \x01(\tR\vcmdRegister\x12'\n" +
 	"\x0fstatus_register\x18\x02 \x01(\tR\x0estatusRegister\x12#\n" +
-	"\rdata_register\x18\x03 \x01(\fR\fdataRegister*o\n" +
+	"\rdata_register\x18\x03 \x01(\fR\fdataRegister*\xa3\x01\n" +
 	"\tFaultType\x12\x0e\n" +
 	"\n" +
 	"FAULT_NONE\x10\x00\x12\x1b\n" +
 	"\x17FAULT_PERMISSION_DENIED\x10\x01\x12\x19\n" +
 	"\x15FAULT_INVALID_ADDRESS\x10\x02\x12\x1a\n" +
-	"\x16FAULT_HARDWARE_TIMEOUT\x10\x032k\n" +
+	"\x16FAULT_HARDWARE_TIMEOUT\x10\x03\x12\x18\n" +
+	"\x14FAULT_PATH_TRAVERSAL\x10\x04\x12\x18\n" +
+	"\x14FAULT_FILE_NOT_FOUND\x10\x052k\n" +
 	"\x12IOSimulationEngine\x12U\n" +
 	"\x10StreamSimulation\x12\x1f.io_simulator.SimControlCommand\x1a\x1c.io_simulator.SystemSnapshot(\x010\x01B\n" +
 	"Z\b./api/pbb\x06proto3"
@@ -710,7 +836,7 @@ func file_io_simulation_proto_rawDescGZIP() []byte {
 }
 
 var file_io_simulation_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_io_simulation_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_io_simulation_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_io_simulation_proto_goTypes = []any{
 	(FaultType)(0),                // 0: io_simulator.FaultType
 	(SimControlCommand_Action)(0), // 1: io_simulator.SimControlCommand.Action
@@ -718,27 +844,29 @@ var file_io_simulation_proto_goTypes = []any{
 	(ProcessBlock_State)(0),       // 3: io_simulator.ProcessBlock.State
 	(*SimControlCommand)(nil),     // 4: io_simulator.SimControlCommand
 	(*ReadRequestConfig)(nil),     // 5: io_simulator.ReadRequestConfig
-	(*SystemSnapshot)(nil),        // 6: io_simulator.SystemSnapshot
-	(*ProcessBlock)(nil),          // 7: io_simulator.ProcessBlock
-	(*MemoryView)(nil),            // 8: io_simulator.MemoryView
-	(*HardwareView)(nil),          // 9: io_simulator.HardwareView
+	(*UserContext)(nil),           // 6: io_simulator.UserContext
+	(*SystemSnapshot)(nil),        // 7: io_simulator.SystemSnapshot
+	(*ProcessBlock)(nil),          // 8: io_simulator.ProcessBlock
+	(*MemoryView)(nil),            // 9: io_simulator.MemoryView
+	(*HardwareView)(nil),          // 10: io_simulator.HardwareView
 }
 var file_io_simulation_proto_depIdxs = []int32{
-	1, // 0: io_simulator.SimControlCommand.action:type_name -> io_simulator.SimControlCommand.Action
-	5, // 1: io_simulator.SimControlCommand.config:type_name -> io_simulator.ReadRequestConfig
-	0, // 2: io_simulator.SimControlCommand.injected_fault:type_name -> io_simulator.FaultType
-	2, // 3: io_simulator.SystemSnapshot.current_active_layer:type_name -> io_simulator.SystemSnapshot.Layer
-	7, // 4: io_simulator.SystemSnapshot.process_state:type_name -> io_simulator.ProcessBlock
-	8, // 5: io_simulator.SystemSnapshot.memory_state:type_name -> io_simulator.MemoryView
-	9, // 6: io_simulator.SystemSnapshot.hardware_state:type_name -> io_simulator.HardwareView
-	3, // 7: io_simulator.ProcessBlock.state:type_name -> io_simulator.ProcessBlock.State
-	4, // 8: io_simulator.IOSimulationEngine.StreamSimulation:input_type -> io_simulator.SimControlCommand
-	6, // 9: io_simulator.IOSimulationEngine.StreamSimulation:output_type -> io_simulator.SystemSnapshot
-	9, // [9:10] is the sub-list for method output_type
-	8, // [8:9] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	1,  // 0: io_simulator.SimControlCommand.action:type_name -> io_simulator.SimControlCommand.Action
+	5,  // 1: io_simulator.SimControlCommand.config:type_name -> io_simulator.ReadRequestConfig
+	0,  // 2: io_simulator.SimControlCommand.injected_fault:type_name -> io_simulator.FaultType
+	6,  // 3: io_simulator.SimControlCommand.user_context:type_name -> io_simulator.UserContext
+	2,  // 4: io_simulator.SystemSnapshot.current_active_layer:type_name -> io_simulator.SystemSnapshot.Layer
+	8,  // 5: io_simulator.SystemSnapshot.process_state:type_name -> io_simulator.ProcessBlock
+	9,  // 6: io_simulator.SystemSnapshot.memory_state:type_name -> io_simulator.MemoryView
+	10, // 7: io_simulator.SystemSnapshot.hardware_state:type_name -> io_simulator.HardwareView
+	3,  // 8: io_simulator.ProcessBlock.state:type_name -> io_simulator.ProcessBlock.State
+	4,  // 9: io_simulator.IOSimulationEngine.StreamSimulation:input_type -> io_simulator.SimControlCommand
+	7,  // 10: io_simulator.IOSimulationEngine.StreamSimulation:output_type -> io_simulator.SystemSnapshot
+	10, // [10:11] is the sub-list for method output_type
+	9,  // [9:10] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_io_simulation_proto_init() }
@@ -752,7 +880,7 @@ func file_io_simulation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_io_simulation_proto_rawDesc), len(file_io_simulation_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
