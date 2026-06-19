@@ -25,6 +25,11 @@ Thumbs.db
 # 本地测试或临时日志
 *.log
 
+# Python 虚拟环境与构建产物
+.venv/
+__pycache__/
+*.pyc
+
 # 前端依赖与构建产物
 node_modules/
 web/src/generated/
