@@ -323,18 +323,15 @@ select.sel {
 .connector {
     stroke: var(--border-active);
     stroke-width: 1.5;
-    marker-end: url(#arrow-down);
-    transition: stroke 0.35s, marker-end 0.35s, filter 0.35s;
+    transition: stroke 0.35s, filter 0.35s;
 }
 .connector.active {
     stroke: var(--phosphor);
-    marker-end: url(#arrow-down-active);
     filter: url(#glow-active);
     stroke-width: 2;
 }
 .connector.loopback {
     stroke-dasharray: 6 3;
-    marker-end: none;
     opacity: 0;
     transition: opacity 0.4s, stroke 0.4s;
 }
@@ -421,7 +418,7 @@ select.sel {
 /* HW / INT bottom-row cards: override absolute positioning */
 .layer-card.hw-card,
 .layer-card.int-card {
-    width: 200px;
+    width: 220px;
     position: relative;
     transform: none;
     left: auto; right: auto; top: auto;
