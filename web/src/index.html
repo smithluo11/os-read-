@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OS I/O Simulator — VFS &amp; Double-Buffer Demo</title>
+<title>OS I/O 模拟器 — VFS 与双缓冲 demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -17,74 +17,86 @@
     <span class="version">v1.0</span>
   </div>
   <div class="topbar-center">
-    <button id="btn-init" class="btn btn-primary">● INIT</button>
-    <button id="btn-step" class="btn btn-accent">▶ STEP_NEXT</button>
-    <button id="btn-autoplay" class="btn btn-warn hidden">⚡ AUTO</button>
+    <button id="btn-connect" class="btn btn-primary">🔌 连接后端</button>
+    <button id="btn-init" class="btn btn-accent" disabled>● 发起读取</button>
+    <button id="btn-step" class="btn" disabled>▶ 下一步</button>
+    <button id="btn-autoplay" class="btn btn-warn hidden">⚡ 自动连点</button>
   </div>
   <div class="topbar-right">
-    <label class="config-label">User</label>
-    <select id="sel-user" class="sel">
-      <option value="user1">👤 user1 (uid=1000)</option>
-      <option value="root">🔒 root (uid=0)</option>
-    </select>
+    <span id="conn-status" class="conn-badge disconnected">● 未连接</span>
   </div>
 </header>
 
 <div class="main-grid">
-  <!-- LEFT: Control Panel -->
+  <!-- 左侧：控制面板 -->
   <aside class="panel-control">
-    <h2 class="panel-title">Request Config</h2>
+    <h2 class="panel-title">请求配置</h2>
+
     <div class="field">
-      <label>File Path</label>
-      <select id="cfg-path" class="sel full">
-        <option value="/home/user1/notes.txt">/home/user1/notes.txt (normal)</option>
-        <option value="/etc/shadow">/etc/shadow (sensitive)</option>
-        <option value="../../etc/shadow">../../etc/shadow (traversal)</option>
-        <option value="/tmp/data.bin">/tmp/data.bin (world-writable)</option>
-        <option value="/nonexistent">/nonexistent (missing)</option>
+      <label>后端地址</label>
+      <div class="row-input">
+        <input type="text" id="cfg-host" class="inp" value="http://localhost:18083" style="flex:1">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>用户身份</label>
+      <select id="sel-user" class="sel full">
+        <option value="user1">👤 普通用户 (uid=1000)</option>
+        <option value="root">🔒 Root 用户 (uid=0)</option>
       </select>
     </div>
+
+    <hr>
+
     <div class="field">
-      <label>Bytes to Read: <strong id="val-bytes">16384</strong></label>
+      <label>文件路径</label>
+      <select id="cfg-path" class="sel full">
+        <option value="/home/user1/notes.txt">/home/user1/notes.txt（普通文件）</option>
+        <option value="/etc/shadow">/etc/shadow（系统敏感文件）</option>
+        <option value="../../etc/shadow">../../etc/shadow（路径穿越）</option>
+        <option value="/tmp/data.bin">/tmp/data.bin（散设备文件）</option>
+        <option value="/nonexistent">/nonexistent（文件不存在）</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>读取字节数：<strong id="val-bytes">16384</strong></label>
       <input type="range" id="cfg-bytes" min="100" max="65536" value="16384" step="100">
     </div>
+
     <div class="field">
-      <label>User Buffer Addr: <code id="val-addr">0x10000000</code></label>
+      <label>用户缓冲区地址：<code id="val-addr">0x10000000</code></label>
       <select id="cfg-addr" class="sel full">
-        <option value="0x10000000">0x10000000 (safe)</option>
-        <option value="0xFFFFFFFF">0xFFFFFFFF (invalid)</option>
+        <option value="0x10000000">0x10000000（安全）</option>
+        <option value="0xFFFFFFFF">0xFFFFFFFF（非法越界）</option>
       </select>
     </div>
+
     <div class="field row">
-      <label>Double Buffer (Ping-Pong)</label>
+      <label>双缓冲 (Ping-Pong)</label>
       <label class="toggle">
         <input type="checkbox" id="cfg-dblbuf" checked>
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span id="lbl-dblbuf">ON</span>
+        <span id="lbl-dblbuf" class="toggle-label">开</span>
       </label>
     </div>
+
     <div class="field">
-      <label>Inject Fault</label>
+      <label>注入故障</label>
       <select id="cfg-fault" class="sel full">
-        <option value="0">None</option>
-        <option value="1">FAULT_PERMISSION_DENIED</option>
-        <option value="2">FAULT_INVALID_ADDRESS</option>
-        <option value="3">FAULT_HARDWARE_TIMEOUT</option>
-        <option value="4">FAULT_PATH_TRAVERSAL</option>
-        <option value="5">FAULT_FILE_NOT_FOUND</option>
+        <option value="0">无</option>
+        <option value="1">权限拒绝 (EACCES)</option>
+        <option value="2">非法地址 (EFAULT)</option>
+        <option value="3">硬件超时 (EIO)</option>
+        <option value="4">路径穿越 (EFAULT)</option>
+        <option value="5">文件不存在 (ENOENT)</option>
       </select>
     </div>
-    <hr>
-    <div class="field">
-      <label>gRPC Endpoint</label>
-      <input type="text" id="cfg-host" class="inp full" value="http://localhost:18083">
-    </div>
-    <div id="conn-status" class="conn-status disconnected">● Disconnected</div>
   </aside>
 
-  <!-- CENTER: Layer Topology + Memory View -->
+  <!-- 中间：5 层拓扑 + SVG 连线 -->
   <main class="panel-topology">
-    <!-- Layer nodes with SVG connections -->
     <svg class="topo-svg" viewBox="0 0 400 680" preserveAspectRatio="xMidYMid meet">
       <defs>
         <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto">
@@ -99,51 +111,55 @@
         </filter>
       </defs>
 
-      <!-- USER → VFS -->
+      <!-- 用户层 → VFS -->
       <line x1="200" y1="68" x2="200" y2="120" class="connector" id="conn-u-v"/>
-      <!-- VFS → DRV -->
+      <!-- VFS → 驱动层 -->
       <line x1="200" y1="195" x2="200" y2="248" class="connector" id="conn-v-d"/>
-      <!-- DRV → HW -->
+      <!-- 驱动层 → 硬件层 -->
       <line x1="140" y1="325" x2="70" y2="390" class="connector" id="conn-d-h"/>
-      <!-- HW → INT -->
+      <!-- 硬件层 → 中断层 -->
       <line x1="280" y1="425" x2="320" y2="390" class="connector" id="conn-h-i"/>
-      <!-- INT → DRV (ping-pong loop-back) -->
+      <!-- 乒乓回溯虚线 -->
       <path d="M340,510 C380,510 380,310 340,310" class="connector loopback" id="conn-i-d" fill="none"/>
 
       <foreignObject x="130" y="138" width="140" height="24">
-        <div class="conn-label" id="irp-label">IRP</div>
+        <div class="conn-label" id="irp-label">IRP ↓</div>
       </foreignObject>
       <foreignObject x="310" y="440" width="90" height="24">
         <div class="conn-label" id="irq-label">IRQ ↑</div>
       </foreignObject>
     </svg>
 
+    <!-- 用户层 -->
     <div class="layer-card" id="layer-USER" style="top:28px;left:50%;">
       <span class="layer-tag">L0</span>
-      <span class="layer-name">USER SPACE</span>
-      <span class="layer-sub">sys_read(fd, buf, 16384)</span>
+      <span class="layer-name">用户空间</span>
+      <span class="layer-sub">sys_read(fd, buf, len)</span>
     </div>
+    <!-- 设备无关层 VFS -->
     <div class="layer-card" id="layer-VFS" style="top:148px;left:50%;">
       <span class="layer-tag">L1</span>
-      <span class="layer-name">VFS LAYER</span>
-      <span class="layer-sub" id="vfs-desc">等待校验...</span>
+      <span class="layer-name">设备无关层 (VFS)</span>
+      <span class="layer-sub" id="vfs-desc">等待系统调用...</span>
       <div class="buffers-row" id="vfs-buffers">
-        <div class="kbuf" id="kbuf1"><span class="kbuf-label">Buf A</span><span class="kbuf-data"></span></div>
-        <div class="kbuf" id="kbuf2"><span class="kbuf-label">Buf B</span><span class="kbuf-data"></span></div>
+        <div class="kbuf" id="kbuf1"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
+        <div class="kbuf" id="kbuf2"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
       </div>
     </div>
+    <!-- 设备驱动层 -->
     <div class="layer-card" id="layer-DRV" style="top:278px;left:50%;">
       <span class="layer-tag">L2</span>
-      <span class="layer-name">DEVICE DRIVER</span>
+      <span class="layer-name">设备驱动层</span>
       <span class="layer-sub" id="drv-desc">等待 IRP...</span>
       <div class="pbar-wrap"><div class="pbar-fill" id="pbar"></div></div>
       <span class="chunk-stat" id="chunk-stat">0 / 1</span>
     </div>
+    <!-- 硬件层 + 中断层 -->
     <div class="hw-int-row">
       <div class="layer-card hw-card" id="layer-HW" style="top:418px;left:30px;">
         <span class="layer-tag">L4</span>
-        <span class="layer-name">HARDWARE</span>
-        <span class="layer-sub">Disk Controller</span>
+        <span class="layer-name">硬件层 (磁盘)</span>
+        <span class="layer-sub">磁盘控制器</span>
         <div class="regs">
           <code id="hw-cmd">CMD: NO_OP</code>
           <code id="hw-status">STS: READY</code>
@@ -151,8 +167,8 @@
       </div>
       <div class="layer-card int-card" id="layer-INT" style="top:418px;right:30px;">
         <span class="layer-tag">L3</span>
-        <span class="layer-name">INTERRUPT</span>
-        <span class="layer-sub">ISR Handler</span>
+        <span class="layer-name">中断处理层</span>
+        <span class="layer-sub">ISR 中断服务</span>
         <div class="regs">
           <code id="int-state">等待 IRQ...</code>
         </div>
@@ -161,29 +177,29 @@
     <canvas id="particle-canvas"></canvas>
   </main>
 
-  <!-- RIGHT: Info Panels -->
+  <!-- 右侧：信息面板 -->
   <aside class="panel-info">
-    <!-- Process -->
+    <!-- 进程状态 -->
     <div class="info-card" id="proc-card">
-      <h3>Process</h3>
+      <h3>进程状态</h3>
       <code>PID: <span id="proc-pid">8888</span></code>
-      <code>State: <span id="proc-state" class="badge badge-running">RUNNING</span></code>
+      <code>状态: <span id="proc-state" class="badge badge-running">运行中</span></code>
       <code id="proc-wait"></code>
     </div>
-    <!-- User Buffer -->
+    <!-- 用户缓冲区 -->
     <div class="info-card">
-      <h3>User Buffer</h3>
+      <h3>用户缓冲区</h3>
       <div class="ubuf-scroll" id="ubuf-display"></div>
-      <code>Len: <span id="ubuf-len">0</span> bytes</code>
+      <code>长度: <span id="ubuf-len">0</span> 字节</code>
     </div>
-    <!-- Error Console -->
+    <!-- 差错控制台 -->
     <div class="info-card" id="err-card">
-      <h3>Error Console</h3>
-      <code id="err-msg">SUCCESS</code>
+      <h3>差错控制台</h3>
+      <code id="err-msg">等待指令...</code>
     </div>
-    <!-- Step Log -->
+    <!-- 步骤日志 -->
     <div class="info-card">
-      <h3>Step Log</h3>
+      <h3>步骤日志</h3>
       <div class="log-scroll" id="step-log"></div>
     </div>
   </aside>
