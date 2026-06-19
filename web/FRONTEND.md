@@ -244,3 +244,270 @@ protoc --proto_path=api/proto \
   --ts_out=web/src/generated \
   api/proto/io_simulation.proto
 ```
+
+---
+
+## 7. 答辩演示 — 层面联动四部曲
+
+操作系统 I/O 核心就是「下发请求 (Top-Down)」与「中断回传 (Bottom-Up)」。
+后端状态机 `USER → INDEPENDENT → DRIVER → HARDWARE → INTERRUPT → DRIVER↻` 的流转已为此量身定制。
+前端大屏建议实现以下四阶段动态高亮。
+
+### 7.1 联动起点：用户层 → 设备无关层
+
+```
+┌──────────────┐    系统调用     ┌─────────────────────────┐
+│  USER LAYER  │ ──────────────→ │  INDEPENDENT LAYER (VFS) │
+│  pid=8888    │   read(fd,buf)  │  6 级校验管线启动        │
+│  uid=1000    │                 │  ACL 权限匹配            │
+└──────────────┘                 └─────────────────────────┘
+```
+
+**UI 动画**：用户点击「发起读取」，用户层卡片高亮（展示进程 PID/UID 凭证），
+一束光束传导到设备无关层卡片，该层逐一展示：
+- 路径解析（栈弹出 `..` 的动画）
+- ACL 表查找（FileSystemDB 逐条匹配高亮）
+- 权限位比对（UID/GID vs Owner/Group 的绿色对勾或红色叉号）
+
+**失败分支**：校验失败时设备无关层「爆红」，状态机熔断，错误码弹出。
+**成功分支**：校验通过后生成 IRP（I/O 请求包），以数据包动画传递给驱动层。
+
+### 7.2 联动中继：驱动层 → 硬件层
+
+```
+┌──────────────┐    写寄存器     ┌─────────────────────────┐
+│ DRIVER LAYER │ ──────────────→ │   HARDWARE LAYER         │
+│ 解析 IRP     │  cmd=0x01 READ  │  状态: READY → BUSY      │
+│ 编程 DMA     │  DMA→Buf1/Buf2  │  DMAC 启动              │
+└──────────────┘                 └─────────────────────────┘
+```
+
+**UI 动画**：驱动层卡片高亮，展示 cmd_register 从 `NO_OP` 变成 `READ_SECTOR`（绿色数字跳动）。
+status_register 从 `READY` 变为 `DEVICE_BUSY`（黄色旋转图标）。
+硬件层出现粗线条数据流动画：虚拟磁盘扇区 → 内核缓冲区 (Buffer A/B)，
+数据如水流般灌入。
+
+### 7.3 联动高潮：硬件层 → 中断层（异步的诞生）
+
+```
+┌──────────────┐    IRQ 中断     ┌─────────────────────────┐
+│HW LAYER      │ ═══════════════→│  INTERRUPT LAYER (ISR)   │
+│ DATA_READY   │  红色信号线闪烁  │  拷贝: HW→Kernel→User    │
+│ 进程 BLOCKED │                 │  进程 等待唤醒            │
+└──────────────┘                 └─────────────────────────┘
+```
+
+**UI 动画**：硬件层数据充满后，一条红色「IRQ 中断信号线」从硬件层闪烁拉通到中断层。
+进程状态卡片显示 `BLOCKED`（橙色，带旋转等待图标）。
+中断层执行两步拷贝动画：
+1. `DataRegister` → `Kernel_Buffer_X`（黄色箭头）
+2. `Kernel_Buffer_X` → `User_Buffer`（蓝色箭头，数据追加拼接到用户缓冲区尾部）
+
+### 7.4 联动循环：中断层 → 驱动层（乒乓联动 ★核心）
+
+```
+┌──────────────┐   还有 chunk?   ┌─────────────────────────┐
+│  INTERRUPT   │ ═══════════════→│  DRIVER LAYER (再入)     │
+│ chunk N 完成 │  回溯虚线       │  切换 ActiveWriteBuffer  │
+│ 累加数据     │                 │  编程下一块 DMA          │
+└──────────────┘                 └─────────────────────────┘
+         ↑                              │
+         │      ┌──────────────┐        │
+         └──────│ HW LAYER     │←───────┘
+                │ 下一块 DMA   │
+                └──────────────┘
+```
+
+**UI 动画**（最炫酷的联动）：
+当 `current_chunk + 1 < total_chunks` 时，中断层处理完后，
+一条 **虚线回溯箭头** 从「中断层」直接跳回「驱动层」。
+驱动层再次高亮，`ActiveWriteBuffer` 从 1 切换到 2（或 2→1）的翻转动画。
+驱动→硬件→中断三层开始自循环，直到所有 chunk 拼接完毕。
+最后进程状态从 `BLOCKED` 变为 `RUNNING`（绿色），用户层弹出：**「数据读取成功，完整数据已累加！」**
+
+### 7.5 联动面板实现参考
+
+```js
+// 每一帧 SystemSnapshot 到达时，根据 current_active_layer 切换高亮
+function updateLayerHighlight(snapshot) {
+    const layers = ['user', 'independent', 'driver', 'interrupt', 'hardware'];
+    layers.forEach(l => {
+        const el = document.getElementById(`layer-${l}`);
+        el.classList.remove('active', 'error', 'complete');
+    });
+
+    const activeLayer = mapLayerToId(snapshot.currentActiveLayer);
+    const el = document.getElementById(`layer-${activeLayer}`);
+
+    if (snapshot.isFinished && snapshot.finalErrorCode !== 'SUCCESS') {
+        el.classList.add('error');  // 红色闪烁
+    } else if (snapshot.isFinished) {
+        el.classList.add('complete');  // 绿色完成
+    } else {
+        el.classList.add('active');  // 蓝色高亮 + 脉冲动画
+    }
+
+    // 乒乓回溯特效：检测 layer 从 INTERRUPT 跳回 DRIVER
+    if (prevLayer === 'interrupt' && activeLayer === 'driver') {
+        showPingPongArrow();  // 显示回溯虚线箭头动画
+    }
+    prevLayer = activeLayer;
+}
+```
+
+---
+
+## 8. 答辩演示 — 设备无关层 (VFS) 三职责可视化
+
+教科书上 VFS 的三个标准职责，后端代码完全有能力可视化展示：
+
+```
++---------------------------------------------------------------+
+|                   设备无关软件层 (VFS)                          |
++---------------------------------------------------------------+
+|  1. 统一接口    →  统一接受 /etc/shadow 或 /tmp/data.bin       |
+|     (Virtual FS)    屏蔽 ext4/NTFS/网络 FS 底层差异             |
+|                                                               |
+|  2. 缓冲管理    →  动态调度 Kernel Buffer 1 和 Buffer 2        |
+|     (Buffer Mgmt)   单缓冲/双缓冲 模式切换                      |
+|                                                               |
+|  3. 差错控制    →  拦截 Path Traversal, Permission Denied     |
+|     (Error Ctrl)    精确返回 EACCES/EFAULT/ENOENT/EIO          |
++---------------------------------------------------------------+
+```
+
+### 8.1 统一接口 (Uniform Interface) 展示
+
+**教科书理论**：无论底层是 ext4、NTFS 还是网络文件系统，VFS 都向上提供统一的 `sys_read` 接口。
+
+**前端实现**：
+- 在 UI 中设计一个文件路径输入框 +「发起读取」按钮
+- 让用户输入不同路径：`/home/user1/notes.txt`（普通文件）、`/etc/shadow`（系统敏感文件）、`/tmp/data.bin`（散设备文件）
+- 所有请求都走同一个 gRPC `StreamSimulation` 入口，后端 `executeIndependentLayer()` 自动路由到 `ValidateFileAccess()`
+
+**答辩台词**：
+> 「无论用户输入什么路径，调用的都是同一个 gRPC 统一契约接口。
+> 设备无关层自动将这些抽象路径映射到我们的模拟虚拟文件系统数据库中，
+> 实现了对上层的完全透明。」
+
+### 8.2 缓冲管理 (Buffer Management) 展示
+
+**教科书理论**：内核统一分配和管理内核缓冲池，减少对慢速外设的直接访问。
+
+**前端实现**：在 UI 右侧做一个「内核缓冲区状态面板」，并排两个方块：
+
+```
+┌──────────────────────────────────┐
+│   内核缓冲区状态面板              │
+│                                  │
+│  ┌────────────┐  ┌────────────┐  │
+│  │ Buffer A   │  │ Buffer B   │  │
+│  │            │  │            │  │
+│  │ [CHUNK_0] │  │  [等待中]   │  │
+│  │            │  │            │  │
+│  │  🔵 拷贝中 │  │  ⚪ 空闲   │  │
+│  └────────────┘  └────────────┘  │
+│                                  │
+│  模式: 双缓冲 (乒乓)              │
+│  active_write: 2  active_read: 1 │
+└──────────────────────────────────┘
+```
+
+**配色方案**：
+| 缓冲区状态 | 颜色 | CSS 动画 |
+|-----------|------|---------|
+| 硬件 DMA 写入中 (`active_write_buffer`) | 🟢 绿色 | `pulse-green` 脉冲 + 数据流入粒子 |
+| CPU 拷贝读取中 (`active_read_buffer`) | 🔵 蓝色 | `pulse-blue` 脉冲 + 数据流出粒子 |
+| 空闲 | ⚪ 灰色 | 静态 |
+
+**答辩台词**：
+> 「在设备无关层和中断层的协同下，我们动态管理着一组内核双缓冲区。
+> 通过对 `active_write_buffer` 和 `active_read_buffer` 的精确控制，
+> 完美模拟了 OS 缓冲池的预读和乒乓流转机制。」
+
+### 8.3 差错控制 (Error Control) 展示
+
+**教科书理论**：当发生越界、权限不足或硬件故障时，内核必须具备差错控制和保护机制。
+
+**前端实现**：在 UI 底部做一个「差错控制演示面板」，包含预设场景按钮：
+
+| 按钮 | 自动设置参数 | 预期捕获 |
+|------|------------|---------|
+| 🔴 模拟路径走私 | path=`../../etc/shadow`, user=user1 | `EFAULT` Path Traversal Detected |
+| 🔴 模拟非法权限 | path=`/etc/shadow`, user=user1 | `EACCES` Permission Denied |
+| 🔴 模拟文件不存在 | path=`/nonexistent/file`, user=user1 | `ENOENT` File Not Found |
+| 🔴 模拟硬件超时 | 任意 path, inject=`FAULT_HARDWARE_TIMEOUT` | `EIO` Hardware Timeout |
+| 🔴 模拟非法地址 | user_buffer_addr=`0xFFFFFFFF`, user=user1 | `EFAULT` Bad Address |
+
+每个按钮点击后，自动发送 `ACTION_INIT` + 对应 config，前端直接 `ACTION_STEP_NEXT`，
+状态机在设备无关层（或硬件层）**立刻熔断**，差错控制面板输出：
+```
+┌──────────────────────────────────────────────┐
+│  差错控制台                                   │
+│  ─────────────────────────────────────────── │
+│  [ERROR] EFAULT: Path Traversal Detected!    │
+│  Security Boundary Blocked.                  │
+│  路径 "../../etc/shadow" 逃逸了用户主目录     │
+│  "/home/user1"                               │
+│  ─────────────────────────────────────────── │
+│  [ERROR] EACCES: Permission Denied.          │
+│  Active UID 1000 does not match Owner UID 0. │
+│  文件 "/etc/shadow" 是敏感系统文件            │
+│  ─────────────────────────────────────────── │
+│  [ERROR] ENOENT: File Not Found.             │
+│  路径 "/nonexistent/file" 在文件系统中不存在  │
+└──────────────────────────────────────────────┘
+```
+
+**答辩台词**：
+> 「我们的内核模拟器具备健全的内核级差错控制。在虚拟 VFS 层，
+> 设计了多级防护管道。一旦触发路径穿越、权限越界或文件缺失，
+> 差错控制模块会立刻熔断状态机，并向上层精确回传标准的 Unix 错误码。」
+
+---
+
+## 9. 答辩演示 — 乒乓缓冲 = 数据流管道化 (Pipelining)
+
+### 9.1 向老师解释管道化概念
+
+真实现代 OS 使用 Scatter-Gather DMA 或 DMA 传输链表实现多数据块跨地址 I/O。
+我们的乒乓双缓冲状态机在逻辑上已完美模拟其核心效益：
+
+```
+时间轴 →
+
+单缓冲 (串行瓶颈):
+| DMA Chunk0 | CPU Copy Chunk0 | DMA Chunk1 | CPU Copy Chunk1 | ...
+      ↑              ↑               ↑              ↑
+   硬件忙          CPU忙          互相等待        互相等待
+
+双缓冲 / 乒乓 (管道化并行):
+| DMA Chunk0 → BufA | DMA Chunk1 → BufB | DMA Chunk2 → BufA | ...
+|    (空闲)         | CPU Copy BufA     | CPU Copy BufB     | ...
+      ↑                    ↑                   ↑
+  硬件 DMA 管道        CPU 拷贝管道      两条管道时间重叠
+```
+
+**答辩台词**：
+> 「当大文件被拆分为多个 Chunk 时，我们利用双内核缓冲区交替承载。
+> 在硬件层通过 DMA 搬运当前数据块的同时，上层 CPU 异步并行拷贝上一个就绪的数据块。
+> 这在逻辑上实现了一个 I/O 搬运与数据处理的并行流水线，
+> 规避了传统单缓冲模式下 CPU 与外设互相等待的串行瓶颈。」
+
+### 9.2 管道化可视化
+
+前端可在 UI 底部添加一行「流水线时间轴」，当 `use_double_buffer=true` 时动态展示：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  I/O 流水线时间轴 (Pipeline Timeline)                        │
+│                                                             │
+│  DMA 管道:  ████████ Chunk0→Buf1 ████████ Chunk1→Buf2 ...  │
+│  CPU 管道:  ········ (等待) ········ ░░░░░░░░ Copy Buf1 .. │
+│                                                             │
+│  ═══════════════════════════════════════════════════════    │
+│  并行效率: DMA 与 CPU 时间窗口重叠，总耗时 ≈ max(T_dma, T_cpu)│
+└─────────────────────────────────────────────────────────────┘
+```
+
+当单缓冲模式时，DMA 管道和 CPU 管道不重叠，直观对比出双缓冲的并发优势。
