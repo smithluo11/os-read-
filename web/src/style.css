@@ -195,12 +195,18 @@ body {
 .layer-name { font-family:var(--mono); font-weight:700; font-size:13px; }
 .layer-sub  { font-family:var(--mono); font-size:10px; color:var(--ink-muted); margin-top:4px; display:block; }
 
-.layer-card.hw-card  { left: 30px;  transform:none; }
-.layer-card.int-card { right: 30px; transform:none; }
+.layer-card.hw-card,
+.layer-card.int-card {
+    position: relative; left: auto; right: auto; top: auto;
+    transform: none;
+}
 .layer-card.hw-card.active,
-.layer-card.int-card.active { transform:scale(1.04); }
+.layer-card.int-card.active { transform: scale(1.04); }
 
-.hw-int-row { position:absolute; top:440px; left:0; right:0; height:180px; }
+.hw-int-row {
+    position: absolute; top: 440px; left: 40px; right: 40px; height: 160px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+}
 
 /* Buffer boxes inside VFS */
 .buffers-row { display:flex; gap:6px; margin-top:8px; }
