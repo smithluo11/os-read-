@@ -8,6 +8,33 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>
+  /* 重写三栏布局：中间固定 400px，两边自适应平分剩余空间 */
+  .main-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 400px minmax(300px, 1fr);
+    gap: 20px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  /* 拓扑区容器锁定 400px，与内部 SVG/Cards 共用同一坐标系 */
+  .panel-topology {
+    width: 400px !important;
+    min-width: 400px !important;
+    position: relative;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .panel-info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+</style>
 </head>
 <body>
 
@@ -95,11 +122,10 @@
     </div>
   </aside>
 
-  <!-- 中间：5 层拓扑 + SVG 连线 — 强制居中锁定坐标系 -->
-  <main class="panel-topology" style="position: relative; min-width: 420px; overflow: hidden;">
-
-    <svg class="topo-svg" viewBox="0 0 400 750" preserveAspectRatio="xMidYMid meet"
-         style="position:absolute; top:0; left:50%; transform:translateX(-50%); width:400px; height:750px;">
+  <!-- 中间：5 层拓扑 + SVG 连线 — 面板锁定 400px 宽，left:200px 为绝对中心 -->
+  <main class="panel-topology">
+    <svg class="topo-svg" viewBox="0 0 400 750"
+         style="position:absolute; top:0; left:0; width:400px; height:750px;">
       <defs>
         <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto">
           <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
@@ -113,28 +139,23 @@
         </filter>
       </defs>
 
-      <!-- 用户层 → VFS -->
-      <line x1="200" y1="80" x2="200" y2="145" class="connector" id="conn-u-v"/>
-      <!-- VFS → 驱动层 -->
-      <line x1="200" y1="260" x2="200" y2="315" class="connector" id="conn-v-d"/>
-      <!-- 驱动层 → 硬件层 -->
-      <line x1="140" y1="400" x2="80" y2="470" class="connector" id="conn-d-h"/>
-      <!-- 硬件层 → 中断层 -->
-      <line x1="260" y1="470" x2="320" y2="400" class="connector" id="conn-h-i"/>
-      <!-- 乒乓回溯虚线 -->
-      <path d="M340,560 C390,560 390,360 340,360" class="connector loopback" id="conn-i-d" fill="none"/>
+      <line x1="200" y1="80" x2="200" y2="150" class="connector" id="conn-u-v"/>
+      <line x1="200" y1="265" x2="200" y2="320" class="connector" id="conn-v-d"/>
+      <line x1="140" y1="400" x2="80" y2="480" class="connector" id="conn-d-h"/>
+      <line x1="260" y1="480" x2="320" y2="400" class="connector" id="conn-h-i"/>
+      <path d="M340,560 C390,560 390,365 340,365" class="connector loopback" id="conn-i-d" fill="none"/>
 
-      <foreignObject x="130" y="160" width="140" height="24">
+      <foreignObject x="130" y="165" width="140" height="24">
         <div class="conn-label" id="irp-label">IRP ↓</div>
       </foreignObject>
-      <foreignObject x="310" y="490" width="90" height="24">
+      <foreignObject x="310" y="495" width="90" height="24">
         <div class="conn-label" id="irq-label">IRQ ↑</div>
       </foreignObject>
     </svg>
 
     <!-- 用户层 -->
     <div class="layer-card" id="layer-USER"
-         style="position:absolute; top:24px; left:50%; transform:translateX(-50%); width:240px; box-sizing:border-box;">
+         style="position:absolute; top:24px; left:200px; transform:translateX(-50%); width:240px; box-sizing:border-box;">
       <span class="layer-tag">L0</span>
       <span class="layer-name">用户空间</span>
       <span class="layer-sub">sys_read(fd, buf, len)</span>
@@ -142,7 +163,7 @@
 
     <!-- 设备无关层 VFS -->
     <div class="layer-card" id="layer-VFS"
-         style="position:absolute; top:150px; left:50%; transform:translateX(-50%); width:280px; box-sizing:border-box;">
+         style="position:absolute; top:150px; left:200px; transform:translateX(-50%); width:280px; box-sizing:border-box;">
       <span class="layer-tag">L1</span>
       <span class="layer-name">设备无关层 (VFS)</span>
       <span class="layer-sub" id="vfs-desc">等待系统调用...</span>
@@ -154,7 +175,7 @@
 
     <!-- 设备驱动层 -->
     <div class="layer-card" id="layer-DRV"
-         style="position:absolute; top:320px; left:50%; transform:translateX(-50%); width:240px; box-sizing:border-box;">
+         style="position:absolute; top:320px; left:200px; transform:translateX(-50%); width:240px; box-sizing:border-box;">
       <span class="layer-tag">L2</span>
       <span class="layer-name">设备驱动层</span>
       <span class="layer-sub" id="drv-desc">等待 IRP...</span>
@@ -164,7 +185,7 @@
 
     <!-- 硬件层 + 中断层 -->
     <div class="hw-int-row"
-         style="position:absolute; top:480px; left:50%; transform:translateX(-50%); width:360px; display:flex; justify-content:space-between;">
+         style="position:absolute; top:490px; left:200px; transform:translateX(-50%); width:360px; display:flex; justify-content:space-between;">
       <div class="layer-card hw-card" id="layer-HW" style="width:165px; box-sizing:border-box; margin:0;">
         <span class="layer-tag">L4</span>
         <span class="layer-name">硬件层 (磁盘)</span>
@@ -185,30 +206,26 @@
     </div>
 
     <canvas id="particle-canvas"
-            style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5;"></canvas>
+            style="position:absolute; top:0; left:0; width:400px; height:750px; pointer-events:none; z-index:5;"></canvas>
   </main>
 
   <!-- 右侧：信息面板 -->
   <aside class="panel-info">
-    <!-- 进程状态 -->
     <div class="info-card" id="proc-card">
       <h3>进程状态</h3>
       <code>PID: <span id="proc-pid">8888</span></code>
       <code>状态: <span id="proc-state" class="badge badge-running">运行中</span></code>
       <code id="proc-wait"></code>
     </div>
-    <!-- 用户缓冲区 -->
     <div class="info-card">
       <h3>用户缓冲区</h3>
       <div class="ubuf-scroll" id="ubuf-display"></div>
       <code>长度: <span id="ubuf-len">0</span> 字节</code>
     </div>
-    <!-- 差错控制台 -->
     <div class="info-card" id="err-card">
       <h3>差错控制台</h3>
       <code id="err-msg">等待指令...</code>
     </div>
-    <!-- 步骤日志 -->
     <div class="info-card">
       <h3>步骤日志</h3>
       <div class="log-scroll" id="step-log"></div>
