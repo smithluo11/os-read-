@@ -1,0 +1,117 @@
+:root {
+    --bg-color: #0f172a;
+    --text-color: #e2e8f0;
+    --border-color: #334155;
+    --active-glow: #38bdf8;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: 'Courier New', Courier, monospace;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    overflow: hidden;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+}
+
+button {
+    padding: 10px 20px;
+    font-family: inherit;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    transition: transform 0.1s, opacity 0.2s;
+}
+
+button:active { transform: scale(0.95); }
+.primary-btn { background: var(--active-glow); color: #000; }
+.danger-btn { background: var(--error-color); color: #fff; }
+.hidden { display: none !important; }
+
+/* 拓扑图容器 */
+.topology-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    position: relative;
+    z-index: 10;
+}
+
+.hw-int-row { display: flex; gap: 40px; }
+
+/* 层节点基础样式 */
+.layer-node {
+    width: 300px;
+    background: #1e293b;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    /* 核心动画防线：状态机缓动插值 */
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+    transform: scale(1);
+}
+
+/* 激活状态：光晕与放大 */
+.layer-node.active {
+    border-color: var(--active-glow);
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.6);
+    transform: scale(1.05);
+}
+
+.node-title { font-weight: bold; font-size: 1.2em; margin-bottom: 10px; color: #94a3b8; }
+.layer-node.active .node-title { color: #fff; }
+
+/* VFS 双缓冲着色 */
+.buffers { display: flex; gap: 10px; margin-top: 15px; }
+.buffer-box {
+    flex: 1; padding: 10px;
+    background: #0f172a; border: 1px solid var(--border-color);
+    transition: background-color 0.5s ease-out, border-color 0.5s;
+}
+.buffer-box.dirty {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: var(--warning-color);
+}
+.buffer-box.flushing {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: var(--success-color);
+}
+
+/* 进度条平滑增长 */
+.progress-bar-container {
+    width: 100%; height: 8px; background: #0f172a; margin-top: 15px; border-radius: 4px; overflow: hidden;
+}
+.progress-bar {
+    height: 100%; width: 0%; background: var(--success-color);
+    /* 核心：进度条缓动 */
+    transition: width 0.5s ease-out;
+}
+
+/* 差错控制台 */
+.error-console {
+    margin-top: 10px; font-size: 0.8em; color: var(--success-color);
+    transition: color 0.3s;
+}
+.error-console.has-error { color: var(--error-color); font-weight: bold; }
+
+/* 粒子层画布，置于底层 */
+#particle-canvas {
+    position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+    pointer-events: none; z-index: 1;
+}

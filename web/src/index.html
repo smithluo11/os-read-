@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OS I/O Simulation Engine</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="header">
+        <h1>I/O Simulation Engine <span>v1.0</span></h1>
+        <div class="controls">
+            <button id="btn-next" class="primary-btn">STEP_NEXT (Next Snapshot)</button>
+            <button id="btn-autoplay" class="danger-btn hidden">Auto-Play [Debug]</button>
+        </div>
+    </div>
+
+    <div class="topology-container">
+        <div class="layer-node" id="layer-USER">
+            <div class="node-title">USER SPACE</div>
+            <div class="node-detail">syscall: write()</div>
+        </div>
+
+        <div class="layer-node" id="layer-VFS">
+            <div class="node-title">VFS LAYER</div>
+            <div class="buffers">
+                <div class="buffer-box" id="vfs-buf-1">Buffer 1 <span class="status">CLEAN</span></div>
+                <div class="buffer-box" id="vfs-buf-2">Buffer 2 <span class="status">CLEAN</span></div>
+            </div>
+            <div class="error-console" id="vfs-error">Status: OK</div>
+        </div>
+
+        <div class="layer-node" id="layer-DRV">
+            <div class="node-title">DEVICE DRIVER</div>
+            <div class="node-detail">Chunk Pipeline</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="drv-progress"></div>
+            </div>
+        </div>
+
+        <div class="hw-int-row">
+            <div class="layer-node hw-node" id="layer-HW">
+                <div class="node-title">HARDWARE (DISK)</div>
+                <div class="register">Status: <span id="hw-status">IDLE</span></div>
+            </div>
+
+            <div class="layer-node int-node" id="layer-INT">
+                <div class="node-title">INTERRUPT CTRLR</div>
+                <div class="node-detail">IRQ Signal</div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="particle-canvas"></canvas>
+
+    <script src="app.js"></script>
+</body>
+</html>
