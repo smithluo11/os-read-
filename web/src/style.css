@@ -1,9 +1,11 @@
 /* ============================================================
    OS I/O Simulator — Laboratory Instrument Panel
-   Precision instrument aesthetic · Cyan-teal accent · High density
+   Precision instrument aesthetic · Cyan-teal accent · 7:3 layout
    ============================================================ */
 
 :root {
+    font-size: 15px; /* 全局基准放大 */
+
     /* ── Backgrounds (light → deeper) ── */
     --bg-deep:       #f3f4f6;
     --bg-panel:      #ffffff;
@@ -22,13 +24,13 @@
     --border-light:  #e8ebef;
     --border-active: #c2c7ce;
 
-    /* ── Primary accent: Cyan-Teal (scope trace) ── */
+    /* ── Primary accent: Cyan-Teal ── */
     --phosphor:      #0891b2;
     --phosphor-dim:  #0e7490;
     --phosphor-soft: rgba(8,145,178,0.08);
     --phosphor-glow: rgba(8,145,178,0.20);
 
-    /* ── Secondary accent: Violet (loopback, secondary states) ── */
+    /* ── Secondary accent: Violet ── */
     --cyan:          #7c3aed;
     --cyan-soft:     rgba(124,58,237,0.08);
 
@@ -41,7 +43,7 @@
     --red-soft:      rgba(220,38,38,0.08);
     --red-glow:      rgba(220,38,38,0.22);
 
-    /* ── Info/Read state: Indigo ── */
+    /* ── Info/Read: Indigo ── */
     --cobalt:        #6366f1;
     --cobalt-soft:   rgba(99,102,241,0.10);
 
@@ -70,31 +72,62 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* ---- TOP BAR ---- */
-.topbar {
+/* ============================================================
+   TOP CONTROL BAR
+   ============================================================ */
+
+.top-control-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 20px;
+    padding: 0 24px;
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 100;
+    height: 72px;
+    box-sizing: border-box;
     box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
-.topbar-left  { display:flex; align-items:baseline; gap:10px; }
-.topbar-center { display:flex; gap:8px; }
-.topbar-right { display:flex; align-items:center; gap:10px; }
+
+.ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ctrl-config {
+    flex: 1;
+    justify-content: center;
+    gap: 16px;
+}
+
+.field-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    background: var(--bg-card);
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+}
+
+.field-inline input[type="range"] {
+    width: 100px;
+}
 
 .logo {
     font-family: var(--mono); font-weight: 700; font-size: 17px;
     color: var(--phosphor); letter-spacing: 2px;
 }
-.version {
-    font-family: var(--mono); font-size: 10px;
-    color: var(--ink-dim); letter-spacing: 1px;
-}
 
-/* ---- BUTTONS ---- */
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
 .btn {
     font-family: var(--sans); font-size: 12px; font-weight: 600;
     padding: 6px 14px;
@@ -152,7 +185,10 @@ body {
     filter: grayscale(0.3);
 }
 
-/* ---- SELECT / INPUT ---- */
+/* ============================================================
+   SELECT / INPUT / RANGE
+   ============================================================ */
+
 .sel, .inp {
     font-family: var(--sans); font-size: 12px;
     padding: 8px 12px;
@@ -169,7 +205,6 @@ body {
 }
 .sel.full, .inp.full { width: 100%; }
 
-/* Range slider */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
@@ -197,7 +232,10 @@ select.sel {
     padding-right: 28px;
 }
 
-/* ---- TOGGLE ---- */
+/* ============================================================
+   TOGGLE
+   ============================================================ */
+
 .toggle { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
 .toggle input { display:none; }
 .toggle-track {
@@ -224,50 +262,10 @@ select.sel {
     font-family: var(--sans); font-size: 11px; color: var(--ink-muted);
 }
 
-/* ---- MAIN GRID (fallback, overridden by inline styles) ---- */
-.main-grid {
-    display: grid;
-    grid-template-columns: 260px 1fr 280px;
-    gap: 0; height: calc(100vh - 56px);
-}
+/* ============================================================
+   CONNECTION STATUS
+   ============================================================ */
 
-/* ---- LEFT CONTROL PANEL ---- */
-.panel-control {
-    background: var(--bg-panel);
-    border-right: 1px solid var(--border);
-    padding: 14px 14px; overflow-y: auto;
-}
-.panel-title {
-    font-family: var(--sans); font-size: 13px; font-weight: 700;
-    margin-bottom: 14px;
-    color: var(--phosphor-dim);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-.field { margin-bottom: 10px; }
-.field label {
-    display:block; font-size: 11px;
-    color: var(--ink-muted);
-    margin-bottom: 5px;
-    font-family: var(--sans);
-    letter-spacing: 0.3px;
-}
-.field.row { display:flex; align-items:center; justify-content:space-between; }
-.field.row label { margin-bottom:0; }
-.field hr {
-    border:none;
-    border-top: 1px solid var(--border);
-    margin: 10px 0;
-}
-.field code {
-    font-family: var(--mono); font-size: 11px;
-    color: var(--phosphor-dim);
-    padding: 2px 6px;
-    background: var(--phosphor-soft);
-    border-radius: 4px;
-}
-
-/* Connection status badge */
 .conn-status {
     font-family: var(--sans); font-size: 11px; font-weight: 600;
     padding: 6px 14px;
@@ -302,27 +300,25 @@ select.sel {
     50% { opacity: 0.5; }
 }
 
-/* ---- CENTER TOPOLOGY ---- */
-.panel-topology {
-    position: relative;
-    background:
-        linear-gradient(180deg, #fafbfd 0%, #f5f6f8 50%, #fafbfd 100%);
-    overflow: hidden;
-}
+/* ============================================================
+   VISUALIZATION PANEL (grid dots ported from old .panel-topology)
+   ============================================================ */
 
-/* Grid dots background for topology panel */
-.panel-topology::before {
+.panel-visual::before {
     content: '';
     position: absolute; inset: 0; pointer-events: none; z-index: 0;
-    background-image:
-        radial-gradient(circle, rgba(139,144,153,0.08) 1px, transparent 1px);
-    background-size: 20px 20px;
+    background-image: radial-gradient(circle, rgba(139,144,153,0.08) 1.5px, transparent 1.5px);
+    background-size: 24px 24px;
 }
 
 .topo-svg {
     position: absolute; inset: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 1;
 }
+
+/* ============================================================
+   SVG CONNECTORS
+   ============================================================ */
 
 .connector {
     stroke: var(--border-active);
@@ -356,16 +352,18 @@ select.sel {
     letter-spacing: 1px;
 }
 
-/* ---- LAYER CARDS ---- */
+/* ============================================================
+   LAYER CARDS (merged — single definition, no duplicates)
+   ============================================================ */
+
 .layer-card {
     position: absolute;
-    width: 180px;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 10px 12px;
     z-index: 10;
-    transition: border-color 0.35s, box-shadow 0.35s, transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
     transform: translateX(-50%);
     box-shadow: var(--shadow-sm);
 }
@@ -420,22 +418,30 @@ select.sel {
     margin-top: 5px; display: block;
 }
 
+/* HW / INT bottom-row cards: override absolute positioning */
 .layer-card.hw-card,
 .layer-card.int-card {
-    position: relative; left: auto; right: auto; top: auto;
+    width: 200px;
+    position: relative;
     transform: none;
+    left: auto; right: auto; top: auto;
 }
 .layer-card.hw-card.active,
 .layer-card.int-card.active {
-    transform: scale(1.03);
+    transform: scale(1.05);
+    z-index: 30;
 }
 
+/* HW + INT row — synced to 500px (matches HTML inline) */
 .hw-int-row {
-    position: absolute; top: 480px; left: 0; right: 0; height: auto;
+    position: absolute; top: 500px; left: 0; right: 0; height: auto;
     display: flex; justify-content: center; align-items: flex-start; gap: 20px;
 }
 
-/* ---- BUFFER BOXES ---- */
+/* ============================================================
+   BUFFER BOXES
+   ============================================================ */
+
 .buffers-row { display:flex; gap:6px; margin-top:8px; }
 .kbuf {
     flex:1; padding:8px 10px;
@@ -469,7 +475,10 @@ select.sel {
     color: var(--cobalt);
 }
 
-/* ---- PROGRESS BAR ---- */
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+
 .pbar-wrap {
     width:100%; height:4px;
     background: var(--bg-card);
@@ -489,7 +498,10 @@ select.sel {
     margin-top: 2px; display: block;
 }
 
-/* ---- REGISTERS ---- */
+/* ============================================================
+   REGISTERS
+   ============================================================ */
+
 .regs { margin-top:6px; }
 .regs code {
     display:block; font-size: 9px;
@@ -498,7 +510,10 @@ select.sel {
     padding: 2px 0;
 }
 
-/* ---- RIGHT INFO PANELS ---- */
+/* ============================================================
+   RIGHT INFO PANELS
+   ============================================================ */
+
 .panel-info {
     background: var(--bg-panel);
     border-left: 1px solid var(--border);
@@ -532,7 +547,6 @@ select.sel {
     margin-bottom: 3px;
 }
 
-/* User buffer display */
 .ubuf-scroll {
     max-height:100px; overflow-y:auto;
     font-family: var(--mono); font-size: 10px;
@@ -546,7 +560,6 @@ select.sel {
     line-height: 1.6;
 }
 
-/* Step log */
 .log-scroll {
     max-height:160px; overflow-y:auto;
     font-family: var(--mono); font-size: 10px;
@@ -562,7 +575,10 @@ select.sel {
     font-weight: 600;
 }
 
-/* ---- BADGES ---- */
+/* ============================================================
+   BADGES
+   ============================================================ */
+
 .badge {
     display:inline-block; padding: 2px 10px;
     border-radius: var(--radius);
@@ -586,25 +602,34 @@ select.sel {
     border: 1px solid var(--cyan);
 }
 
-/* Error highlight */
 #err-msg.error {
     color: var(--red);
     font-weight: 700;
 }
 
-/* ---- PARTICLE CANVAS ---- */
+/* ============================================================
+   PARTICLE CANVAS
+   ============================================================ */
+
 #particle-canvas {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 5;
+    pointer-events: none; z-index: 20;
 }
 
-/* ---- RESPONSIVE ---- */
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
 @media (max-width: 1100px) {
-    .main-grid { grid-template-columns: 220px 1fr 240px; }
-    .layer-card { width: 150px; }
+    .main-grid { grid-template-columns: 1fr !important; }
+    .topo-anchor { width: 360px; height: 600px; }
+    .layer-card { max-width: 280px; }
 }
 
-/* ---- CUSTOM SCROLLBAR ---- */
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
 ::-webkit-scrollbar {
     width: 6px; height: 6px;
 }
@@ -619,7 +644,6 @@ select.sel {
     background: var(--ink-dim);
 }
 
-/* ---- SELECTION ---- */
 ::selection {
     background: var(--phosphor-soft);
     color: var(--phosphor-dim);
