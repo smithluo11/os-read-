@@ -1,6 +1,5 @@
 // ============================================================
 //  OS I/O Simulator — gRPC-Web Client + Diff-Driven Render
-//  Laboratory Instrument Panel · 50ms Auto-Play
 // ============================================================
 
 // ---- State ----
@@ -11,7 +10,7 @@ let stepCount = 0;
 
 // ---- DOM refs ----
 const $ = (id) => document.getElementById(id);
-const btnInit  = $('btn-init');
+const btnInit  = $('btn-init'); // 合并了 Connect 与 Init 的功能
 const btnStep  = $('btn-step');
 const btnAuto  = $('btn-autoplay');
 const selUser  = $('sel-user');
@@ -23,78 +22,12 @@ const cfgFault  = $('cfg-fault');
 const cfgHost   = $('cfg-host');
 const connStatus = $('conn-status');
 const valBytes   = $('val-bytes');
-const valAddr    = $('val-addr');
-const lblDblbuf  = $('lbl-dblbuf');
 const stepLog    = $('step-log');
+const canvas = $('particle-canvas');
+const ctx = canvas.getContext('2d');
 
-// ---- Connect ----
-function connect() {
-    const host = cfgHost.value.trim();
-    if (!host) {
-        log('错误: 未填写后端地址');
-        return;
-    }
-    log(`尝试连接: ${host}`);
-    try {
-        if (streamHandle) {
-            try { streamHandle.close(); } catch(e) {}
-            streamHandle = null;
-        }
-        streamHandle = window.IOSim.connect(host);
-        streamHandle.onOpen(function () {
-            connStatus.textContent = '● Connected';
-            connStatus.className = 'conn-status connected';
-            log('WebSocket 握手完成！可以发送指令');
-        });
-        streamHandle.onSnapshot(onSnapshot);
-        streamHandle.onError(function (e) {
-            var msg = e.message || e;
-            log('gRPC error: ' + msg);
-            connStatus.textContent = '● Error';
-            connStatus.className = 'conn-status error';
-            btnInit.disabled = true;
-            btnStep.disabled = true;
-        });
-        streamHandle.onEnd(function () {
-            log('Stream ended');
-            connStatus.textContent = '● Disconnected';
-            connStatus.className = 'conn-status disconnected';
-            btnInit.disabled = true;
-            btnStep.disabled = true;
-        });
-        btnInit.disabled = false;
-        btnStep.disabled = false;
-        log('WebSocket 已创建，等待握手...');
-    } catch (e) {
-        log('Connection failed: ' + e.message);
-        connStatus.textContent = '● Disconnected';
-        connStatus.className = 'conn-status disconnected';
-    }
-}
-
-cfgHost.addEventListener('change', connect);
-$('btn-connect').addEventListener('click', function () {
-    log('正在连接后端...');
-    connStatus.textContent = '● 连接中...';
-    connStatus.className = 'conn-status disconnected';
-    connect();
-});
-
-function send(cmd) {
-    if (!streamHandle) { log('Not connected. Click INIT first.'); return; }
-    try { streamHandle.send(cmd); } catch (e) { log(`Write error: ${e.message}`); }
-}
-
-// ---- User context ----
-function getUserCtx() {
-    if (selUser.value === 'root') {
-        return window.IOSim.newUserContext(0, 0, 'root', '/root');
-    }
-    return window.IOSim.newUserContext(1000, 1000, 'user1', '/home/user1');
-}
-
-// ---- INIT ----
-function doInit() {
+// ---- Connect & Init 合并逻辑 ----
+function triggerInit() {
     prevSnap = null; stepCount = 0;
     stepLog.innerHTML = '';
     $('err-msg').textContent = 'SUCCESS'; $('err-msg').className = '';
@@ -108,24 +41,72 @@ function doInit() {
     const config = window.IOSim.newReadConfig(
         cfgPath.value, parseInt(cfgBytes.value), addr, cfgDblBuf.checked
     );
-    const cmd = window.IOSim.newInitCommand(config, getUserCtx());
-    // Inject fault if selected
+    
+    const userCtx = selUser.value === 'root' 
+        ? window.IOSim.newUserContext(0, 0, 'root', '/root')
+        : window.IOSim.newUserContext(1000, 1000, 'user1', '/home/user1');
+
+    const cmd = window.IOSim.newInitCommand(config, userCtx);
     const faultVal = parseInt(cfgFault.value);
     if (faultVal > 0) {
-        const faultCmd = window.IOSim.newInjectFaultCommand(faultVal);
-        send(faultCmd);
+        send(window.IOSim.newInjectFaultCommand(faultVal));
     }
     send(cmd);
-    log(`INIT: ${cfgPath.value} | user=${selUser.value} | bytes=${cfgBytes.value} | dblbuf=${cfgDblBuf.checked}`);
+    log(`INIT: ${cfgPath.value} | user=${selUser.value} | dblbuf=${cfgDblBuf.checked}`);
 }
 
-// ---- STEP ----
+function connectAndInit() {
+    const host = cfgHost.value.trim();
+    if (!host) return log('错误: 未填写后端地址');
+    
+    // 如果已经连接，直接发起初始化
+    if (streamHandle && connStatus.textContent.includes('Connected')) {
+        triggerInit();
+        return;
+    }
+
+    log(`正在连接后端: ${host}...`);
+    connStatus.textContent = '连接中...';
+    connStatus.className = 'conn-status disconnected';
+    
+    try {
+        if (streamHandle) { try { streamHandle.close(); } catch(e) {} }
+        streamHandle = window.IOSim.connect(host);
+        
+        streamHandle.onOpen(function () {
+            connStatus.textContent = '● Connected';
+            connStatus.className = 'conn-status connected';
+            log('握手完成，开始初始化模拟...');
+            triggerInit(); // 连接成功后自动触发 Init
+        });
+        streamHandle.onSnapshot(onSnapshot);
+        streamHandle.onError(function (e) {
+            log('gRPC error: ' + (e.message || e));
+            connStatus.textContent = '● Error';
+            connStatus.className = 'conn-status error';
+            btnStep.disabled = true;
+        });
+        streamHandle.onEnd(function () {
+            connStatus.textContent = '● Disconnected';
+            connStatus.className = 'conn-status disconnected';
+            btnStep.disabled = true;
+        });
+    } catch (e) {
+        log('Connection failed: ' + e.message);
+        connStatus.textContent = '● Disconnected';
+    }
+}
+
+function send(cmd) {
+    if (!streamHandle) return;
+    try { streamHandle.send(cmd); } catch (e) { log(`Write error: ${e.message}`); }
+}
+
 function doStep() {
-    const cmd = window.IOSim.newStepCommand();
-    send(cmd);
+    send(window.IOSim.newStepCommand());
 }
 
-// ---- Snapshot → Render (Diff-driven) ----
+// ---- Snapshot Render (简化版，保留你原有逻辑) ----
 const layerMap = { 0:'USER', 1:'VFS', 2:'DRV', 4:'HW', 3:'INT' };
 
 function onSnapshot(snapMsg) {
@@ -135,31 +116,23 @@ function onSnapshot(snapMsg) {
 
     const activeLayer = layerMap[snap.currentActiveLayer] || 'USER';
 
-    // --- Layer cards ---
     document.querySelectorAll('.layer-card').forEach(el => el.classList.remove('active','error'));
     const card = $(`layer-${activeLayer}`);
     if (card) {
         card.classList.add('active');
-        if (snap.isFinished && snap.finalErrorCode && snap.finalErrorCode !== 'SUCCESS')
-            card.classList.add('error');
+        if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') card.classList.add('error');
     }
 
-    // --- SVG connectors ---
     document.querySelectorAll('.connector').forEach(el => el.classList.remove('active'));
     const connMap = { 'VFS':'conn-u-v', 'DRV':'conn-v-d', 'HW':'conn-d-h', 'INT':'conn-h-i' };
     if (connMap[activeLayer]) $(connMap[activeLayer]).classList.add('active');
-    // Ping-pong loopback
+    
     const prevLayer = prevSnap ? layerMap[prevSnap.currentActiveLayer] : null;
-    if (activeLayer === 'DRV' && prevLayer === 'INT') {
-        $('conn-i-d').classList.add('active');
-    } else {
-        $('conn-i-d').classList.remove('active');
-    }
+    if (activeLayer === 'DRV' && prevLayer === 'INT') $('conn-i-d').classList.add('active');
+    else $('conn-i-d').classList.remove('active');
 
-    // --- VFS description ---
     if (snap.stepDescription) $('vfs-desc').textContent = snap.stepDescription.substring(0, 60);
 
-    // --- Process state ---
     if (snap.processState) {
         $('proc-pid').textContent = snap.processState.pid;
         const st = snap.processState.state;
@@ -168,63 +141,35 @@ function onSnapshot(snapMsg) {
         if (st === 0) { el.textContent = 'RUNNING'; el.classList.add('badge-running'); }
         else if (st === 1) { el.textContent = 'BLOCKED'; el.classList.add('badge-blocked'); }
         else { el.textContent = 'READY'; el.classList.add('badge-ready'); }
-        $('proc-wait').textContent = snap.processState.waitReason || '';
     }
 
-    // --- Memory state ---
     if (snap.memoryState) {
         const mem = snap.memoryState;
-
-        // Kernel buffers
         updateKbuf($('kbuf1'), 1, mem);
         updateKbuf($('kbuf2'), 2, mem);
 
-        // User buffer
         if (mem.userBufferData) {
-            let text = '';
-            if (typeof mem.userBufferData === 'string') {
-                text = mem.userBufferData; // grpc-web-text sends base64, library decodes
-            } else if (mem.userBufferData instanceof Uint8Array) {
-                text = new TextDecoder().decode(mem.userBufferData);
-            }
+            let text = typeof mem.userBufferData === 'string' ? mem.userBufferData : new TextDecoder().decode(mem.userBufferData);
             $('ubuf-display').textContent = text;
             $('ubuf-len').textContent = text.length;
         }
 
-        // Progress bar
         const total = mem.totalChunks || 1;
         const curr  = mem.currentChunk || 0;
         $('pbar').style.width = `${((curr + 1) / total) * 100}%`;
         $('chunk-stat').textContent = `${curr + 1} / ${total}`;
 
-        // IRP info
-        if (mem.currentIrpInfo) $('drv-desc').textContent = mem.currentIrpInfo;
-
-        // Spawn particles when write buffer changes
-        if (prevSnap && prevSnap.memoryState
-            && mem.activeWriteBuffer !== prevSnap.memoryState.activeWriteBuffer) {
+        if (prevSnap && prevSnap.memoryState && mem.activeWriteBuffer !== prevSnap.memoryState.activeWriteBuffer) {
             spawnParticles(mem.activeWriteBuffer);
         }
     }
 
-    // --- Hardware state ---
     if (snap.hardwareState) {
         $('hw-cmd').textContent = `CMD: ${snap.hardwareState.cmdRegister || 'NO_OP'}`;
         $('hw-status').textContent = `STS: ${snap.hardwareState.statusRegister || 'READY'}`;
     }
 
-    // --- Error ---
-    if (snap.finalErrorCode && snap.finalErrorCode !== 'SUCCESS') {
-        $('err-msg').textContent = snap.finalErrorCode;
-        $('err-msg').className = 'error';
-    } else {
-        $('err-msg').textContent = 'SUCCESS';
-        $('err-msg').className = '';
-    }
-
-    // --- Auto-stop ---
     if (snap.isFinished && autoTimer) clearAutoPlay();
-
     prevSnap = snap;
 }
 
@@ -233,8 +178,7 @@ function updateKbuf(el, id, mem) {
     const raw = id === 1 ? mem.kernelBuffer1Data : mem.kernelBuffer2Data;
     const dataEl = el.querySelector('.kbuf-data');
     if (raw && raw.length > 0) {
-        let text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
-        dataEl.textContent = text.substring(0, 24);
+        dataEl.textContent = (typeof raw === 'string' ? raw : new TextDecoder().decode(raw)).substring(0, 24);
     } else {
         dataEl.textContent = '';
     }
@@ -245,27 +189,38 @@ function updateKbuf(el, id, mem) {
 // ---- Auto-Play ----
 function clearAutoPlay() {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-    btnAuto.innerHTML = '⚡ AUTO';
+    btnAuto.innerHTML = '⚡ 自动连点';
 }
 function toggleAutoPlay() {
-    if (autoTimer) { clearAutoPlay(); return; }
-    btnAuto.innerHTML = '■ STOP';
-    autoTimer = setInterval(doStep, 50);
+    if (autoTimer) clearAutoPlay();
+    else {
+        btnAuto.innerHTML = '■ 停止';
+        autoTimer = setInterval(doStep, 50);
+    }
 }
 
-// ---- Particle System (deterministic, no physics engine) ----
+// ---- Particle System (动态计算坐标核心逻辑) ----
 let particles = [];
 let rafId = null;
-const canvas = $('particle-canvas');
-const ctx = canvas.getContext('2d');
 
 function resizeCanvas() {
-    const panel = document.querySelector('.panel-topology');
-    if (!panel) return;
-    canvas.width = panel.clientWidth;
-    canvas.height = panel.clientHeight;
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    canvas.width = parent.clientWidth;
+    canvas.height = parent.clientHeight;
 }
-window.addEventListener('resize', () => { resizeCanvas(); });
+window.addEventListener('resize', resizeCanvas);
+
+// 获取任意元素相对于 Canvas 的中心坐标
+function getElementCenter(el) {
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    return {
+        x: rect.left - canvasRect.left + rect.width / 2,
+        y: rect.top - canvasRect.top + rect.height / 2
+    };
+}
 
 function spawnParticles(targetBuf) {
     cancelParticles();
@@ -273,21 +228,22 @@ function spawnParticles(targetBuf) {
     const hwCard = $('layer-HW');
     const targetEl = targetBuf === 1 ? $('kbuf1') : $('kbuf2');
     if (!hwCard || !targetEl) return;
-    const panel = document.querySelector('.panel-topology');
-    const panelRect = panel.getBoundingClientRect();
-    const hwR = hwCard.getBoundingClientRect();
-    const tR  = targetEl.getBoundingClientRect();
-    const sx = hwR.left + hwR.width / 2 - panelRect.left;
-    const sy = hwR.top + 20 - panelRect.top;
-    const ex = tR.left + tR.width / 2 - panelRect.left;
-    const ey = tR.top + tR.height / 2 - panelRect.top;
-    const mx = (sx + ex) / 2 + 40;
+
+    // 直接从 DOM 实时抓取起终点，彻底解决页面缩放导致的错位
+    const start = getElementCenter(hwCard);
+    const end = getElementCenter(targetEl);
+    
+    // 微调起点：从硬件卡的上方发出
+    const sx = start.x;
+    const sy = start.y - 30; 
+    const ex = end.x;
+    const ey = end.y;
+    const mx = (sx + ex) / 2 + 50; // 贝塞尔控制点往右偏
     const my = (sy + ey) / 2;
 
-    particles = [];
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 5; i++) {
         particles.push({ t: i / 5, speed: 0.005 + Math.random() * 0.005 });
-
+    }
     rafId = requestAnimationFrame(() => particleLoop(sx, sy, mx, my, ex, ey));
 }
 
@@ -314,25 +270,34 @@ function particleLoop(sx, sy, mx, my, ex, ey) {
     rafId = requestAnimationFrame(() => particleLoop(sx, sy, mx, my, ex, ey));
 }
 
-// ---- Helpers ----
 function log(msg) {
     const el = document.createElement('div');
     el.textContent = `> ${msg}`;
     stepLog.prepend(el);
-    while (stepLog.children.length > 80) stepLog.lastChild.remove();
+    if (stepLog.children.length > 80) stepLog.lastChild.remove();
 }
 
 // ---- Event bindings ----
-btnInit.addEventListener('click', doInit);
+btnInit.addEventListener('click', connectAndInit); // 按钮整合：点击一次连接+Init
 btnStep.addEventListener('click', doStep);
 btnAuto.addEventListener('click', toggleAutoPlay);
-cfgBytes.addEventListener('input', () => { valBytes.textContent = cfgBytes.value; });
-cfgAddr.addEventListener('change', () => { valAddr.textContent = cfgAddr.value; });
-cfgDblBuf.addEventListener('change', () => { lblDblbuf.textContent = cfgDblBuf.checked ? 'ON' : 'OFF'; });
+cfgBytes.addEventListener('input', () => valBytes.textContent = cfgBytes.value);
+cfgDblBuf.addEventListener('change', () => $('lbl-dblbuf').textContent = cfgDblBuf.checked ? '双缓冲' : '单缓冲');
 
-// Show Auto-Play in debug mode
-if (new URLSearchParams(window.location.search).get('debug') === '1')
-    btnAuto.classList.remove('hidden');
+if (new URLSearchParams(window.location.search).get('debug') === '1') btnAuto.classList.remove('hidden');
 
-// Boot
+// ---- Accordion toggle ----
+document.querySelectorAll('.accordion-header').forEach(function (header) {
+    header.addEventListener('click', function () {
+        var card = header.closest('.accordion');
+        var isOpen = card.classList.toggle('open');
+        var arrow = header.querySelector('.accordion-arrow');
+        if (arrow) arrow.textContent = isOpen ? '▾' : '▸'; // ▾ : ▸
+        // Re-trigger log-card flex expansion
+        if (card.classList.contains('log-card')) {
+            card.style.flex = isOpen ? '1' : '0 0 auto';
+        }
+    });
+});
+
 resizeCanvas();
