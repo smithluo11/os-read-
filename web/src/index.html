@@ -95,9 +95,11 @@
     </div>
   </aside>
 
-  <!-- 中间：5 层拓扑 + SVG 连线 -->
-  <main class="panel-topology">
-    <svg class="topo-svg" viewBox="0 0 400 750" preserveAspectRatio="xMidYMid meet">
+  <!-- 中间：5 层拓扑 + SVG 连线 — 强制居中锁定坐标系 -->
+  <main class="panel-topology" style="position: relative; min-width: 420px; overflow: hidden;">
+
+    <svg class="topo-svg" viewBox="0 0 400 750" preserveAspectRatio="xMidYMid meet"
+         style="position:absolute; top:0; left:50%; transform:translateX(-50%); width:400px; height:750px;">
       <defs>
         <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto">
           <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
@@ -131,32 +133,39 @@
     </svg>
 
     <!-- 用户层 -->
-    <div class="layer-card" id="layer-USER" style="top:24px;left:50%;">
+    <div class="layer-card" id="layer-USER"
+         style="position:absolute; top:24px; left:50%; transform:translateX(-50%); width:240px; box-sizing:border-box;">
       <span class="layer-tag">L0</span>
       <span class="layer-name">用户空间</span>
       <span class="layer-sub">sys_read(fd, buf, len)</span>
     </div>
+
     <!-- 设备无关层 VFS -->
-    <div class="layer-card" id="layer-VFS" style="top:150px;left:50%;min-height:90px;height:auto;">
+    <div class="layer-card" id="layer-VFS"
+         style="position:absolute; top:150px; left:50%; transform:translateX(-50%); width:280px; box-sizing:border-box;">
       <span class="layer-tag">L1</span>
       <span class="layer-name">设备无关层 (VFS)</span>
       <span class="layer-sub" id="vfs-desc">等待系统调用...</span>
-      <div class="buffers-row" id="vfs-buffers">
-        <div class="kbuf" id="kbuf1"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
-        <div class="kbuf" id="kbuf2"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
+      <div class="buffers-row" id="vfs-buffers" style="display:flex; gap:10px; margin-top:10px; width:100%;">
+        <div class="kbuf" id="kbuf1" style="flex:1; overflow:hidden;"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
+        <div class="kbuf" id="kbuf2" style="flex:1; overflow:hidden;"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
       </div>
     </div>
+
     <!-- 设备驱动层 -->
-    <div class="layer-card" id="layer-DRV" style="top:320px;left:50%;">
+    <div class="layer-card" id="layer-DRV"
+         style="position:absolute; top:320px; left:50%; transform:translateX(-50%); width:240px; box-sizing:border-box;">
       <span class="layer-tag">L2</span>
       <span class="layer-name">设备驱动层</span>
       <span class="layer-sub" id="drv-desc">等待 IRP...</span>
       <div class="pbar-wrap"><div class="pbar-fill" id="pbar"></div></div>
       <span class="chunk-stat" id="chunk-stat">0 / 1</span>
     </div>
+
     <!-- 硬件层 + 中断层 -->
-    <div class="hw-int-row">
-      <div class="layer-card hw-card" id="layer-HW">
+    <div class="hw-int-row"
+         style="position:absolute; top:480px; left:50%; transform:translateX(-50%); width:360px; display:flex; justify-content:space-between;">
+      <div class="layer-card hw-card" id="layer-HW" style="width:165px; box-sizing:border-box; margin:0;">
         <span class="layer-tag">L4</span>
         <span class="layer-name">硬件层 (磁盘)</span>
         <span class="layer-sub">磁盘控制器</span>
@@ -165,7 +174,7 @@
           <code id="hw-status">STS: READY</code>
         </div>
       </div>
-      <div class="layer-card int-card" id="layer-INT">
+      <div class="layer-card int-card" id="layer-INT" style="width:165px; box-sizing:border-box; margin:0;">
         <span class="layer-tag">L3</span>
         <span class="layer-name">中断处理层</span>
         <span class="layer-sub">ISR 中断服务</span>
@@ -174,7 +183,9 @@
         </div>
       </div>
     </div>
-    <canvas id="particle-canvas"></canvas>
+
+    <canvas id="particle-canvas"
+            style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5;"></canvas>
   </main>
 
   <!-- 右侧：信息面板 -->
