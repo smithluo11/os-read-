@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"google.golang.org/grpc"
@@ -28,7 +29,14 @@ func main() {
 		grpcweb.WithWebsocketOriginFunc(func(req *http.Request) bool { return true }),
 	)
 
-	// 4. 创建一个标准 HTTP 处理器，将流量分发给 grpc-web
+	// 4. 注册静态文件服务（前端页面），路径可通过环境变量 STATIC_DIR 自定义
+	staticDir := os.Getenv("STATIC_DIR")
+	if staticDir == "" {
+		staticDir = "web/src" // 本地开发默认路径
+	}
+	http.Handle("/", http.FileServer(http.Dir(staticDir)))
+
+	// 5. 创建一个标准 HTTP 处理器，将流量分发给 grpc-web
 	handler := func(res http.ResponseWriter, req *http.Request) {
 		// gRPC-Web、CORS preflight、WebSocket upgrade 均由 ServeHTTP 内部统一处理
 		if wrappedGrpc.IsGrpcWebRequest(req) ||
@@ -37,7 +45,7 @@ func main() {
 			wrappedGrpc.ServeHTTP(res, req)
 			return
 		}
-		// 其他普通 HTTP 请求
+		// 其他普通 HTTP 请求 → 静态文件服务
 		http.DefaultServeMux.ServeHTTP(res, req)
 	}
 
