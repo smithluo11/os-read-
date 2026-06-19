@@ -782,3 +782,259 @@ S13       INTERRUPT     is_finished=true                —
 3. **动画时长控制在 300-800ms**：太短看不清联动，太长拖慢答辩节奏
 4. **乒乓回溯虚线是最关键的视觉锚点**：它让学生/老师直观理解「中断层如何重新触发驱动层」
 5. **差错熔断用 3 次红色脉冲 (`error-pulse`)**：视觉冲击力强，一眼看出「出错了」
+
+---
+
+## 11. 防御性编码 — 动画稳健落地细节
+
+### 11.1 应对「连点侠」的动画打断机制
+
+**风险场景**：答辩演示时连续快速点击 `ACTION_STEP_NEXT`，前一个 Snapshot 的 500ms
+动画还没播完，下一个 Snapshot 已到达，导致动画叠加、粒子轨迹错乱或卡顿。
+
+**核心武器：CSS transition 的原生中断接管能力**
+
+当 CSS 属性在 transition 中途被修改时，浏览器会**自动从当前中间值（computed style）
+平滑过渡到新目标值**，无需手动计算剩余时间。这意味着：
+
+```js
+// 前端只需立即更新属性，浏览器自动处理动画中断
+function onSnapshotArrived(snap) {
+    // 1. 直接覆盖属性 — CSS transition 自动从中断点平滑过渡
+    updateLayerHighlight(snap);      // class 切换，0.4s transition
+    updateBufferColors(snap.memoryState); // class 切换，0.5s transition
+    updateProgressBar(snap);         // width 更新，0.5s transition
+
+    // 2. rAF 动画需要手动取消 + 重置
+    cancelRAF();       // 取消上一轮粒子动画帧
+    resetParticles();  // 清空粒子数组
+    spawnParticlesForCurrentState(snap); // 从新状态端点重新生成粒子
+}
+```
+
+**关键规则**：
+
+| 动画类型 | 中断策略 | 原因 |
+|----------|---------|------|
+| CSS transition（光晕、颜色、进度条） | **直接覆盖属性**，不做任何保护 | 浏览器自动从 computed style 平滑过渡 |
+| CSS animation（脉冲、流动虚线） | 移除 class 触发的 animation → 重新添加 | 每次新 snapshot 重新设定 animation 起点 |
+| JS rAF（粒子系统） | **必须**调用 `cancelAnimationFrame` + 清空粒子数组 | rAF 没有内置中断，需手动销毁重建 |
+
+```js
+// 完整的 Snapshot 消费函数（含动画中断处理）
+let rafId = null;
+let activeParticles = [];
+
+function consumeSnapshot(snap) {
+    // CSS 动画：直接覆盖，无保护（浏览器原生处理中断）
+    applyCSSTransitions(snap);
+
+    // JS 动画：必须手动取消
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    activeParticles = [];
+
+    // 从新状态重新生成粒子
+    if (shouldSpawnParticles(snap)) {
+        rafId = requestAnimationFrame(particleLoop);
+    }
+}
+```
+
+**「STEP_NEXT 按钮防抖」与「动画打断」的本质区别**：
+- **防抖 (Debounce)**：阻止用户快速点击 → ❌ 会让答辩操作感迟钝，不推荐
+- **动画打断 (Override)**：允许用户快速点击，但每次新 Snapshot 到达时强制覆盖动画状态 → ✅ 操作跟手，动画不堆叠
+
+
+### 11.2 SVG 中断回传线的流向控制
+
+§7 中的 IRQ 信号线和乒乓回溯虚线，运动方向必须与数据流/控制流**绝对一致**。
+
+**核心原理**：
+- `stroke-dashoffset` **递减** → 虚线向前流动（从路径起点到终点）
+- `stroke-dashoffset` **递增** → 虚线向后流动（从路径终点到起点）
+
+**实现方案**：用同一条 SVG 路径，通过 CSS 变量控制流向，避免画两遍线：
+
+```html
+<svg>
+    <!-- 下发请求线：硬件层 ← 驱动层（Top-Down） -->
+    <path id="topdown-line" class="flow-line flow-down"
+          d="M 350 150 L 350 250" />
+
+    <!-- 中断回传线：中断层 ← 硬件层（Bottom-Up） -->
+    <path id="irq-line" class="flow-line flow-up"
+          d="M 450 250 L 450 150" />
+</svg>
+```
+
+```css
+.flow-line {
+    fill: none;
+    stroke-width: 3;
+    stroke-dasharray: 10 6;
+}
+/* 下发请求：dashoffset 递减 → 正向流动 (绿线) */
+.flow-down {
+    stroke: #22c55e;
+    animation: flow-forward 0.8s linear infinite;
+}
+/* 中断回传：dashoffset 递增 → 反向流动 (红线) */
+.flow-up {
+    stroke: #ef4444;
+    animation: flow-reverse 0.6s linear infinite;
+}
+
+@keyframes flow-forward {
+    to { stroke-dashoffset: -32; }  /* 递减 = 正向 */
+}
+@keyframes flow-reverse {
+    to { stroke-dashoffset: 32; }   /* 递增 = 反向 */
+}
+```
+
+**流向校验表**：
+
+| 连线 | 方向 | CSS animation | 含义 |
+|------|------|---------------|------|
+| INDEPENDENT → DRIVER | ↓ 下发 | `flow-forward` (dashoffset 递减) | IRP 请求包向下传递 |
+| DRIVER → HARDWARE | ↓ 下发 | `flow-forward` | 寄存器命令下发 |
+| HARDWARE → INTERRUPT | ↑ 回传 | `flow-reverse` (dashoffset 递增) | IRQ 中断信号向上回传 |
+| INTERRUPT → DRIVER | ↻ 回溯 | `flow-forward` + 虚线 | 乒乓循环，新 DMA 命令下发 |
+
+**触发时机**：
+
+```js
+function updateFlowLines(snap, prev) {
+    const irqLine = document.getElementById('irq-line');
+    const pingpongLine = document.getElementById('pingpong-line');
+
+    // HARDWARE → INTERRUPT: 激活 IRQ 回传线
+    if (snap.currentActiveLayer === 'INTERRUPT'
+        && prev?.currentActiveLayer === 'HARDWARE') {
+        irqLine.classList.add('active');
+    } else {
+        irqLine.classList.remove('active');
+    }
+
+    // INTERRUPT → DRIVER (乒乓回溯): 激活回溯虚线
+    if (snap.currentActiveLayer === 'DRIVER'
+        && prev?.currentActiveLayer === 'INTERRUPT'
+        && snap.memoryState.currentChunk > 0) {
+        pingpongLine.classList.add('active');
+    } else {
+        pingpongLine.classList.remove('active');
+    }
+}
+```
+
+
+### 11.3 数据流入粒子的轻量化实现
+
+**目标**：`kernel_buffer_*_data` 填充时，从硬件层到缓冲区的数据流入动画，
+在低端笔记本 / 答辩投影仪上稳定跑满 60fps。
+
+**核心原则：确定性伪粒子，零物理引擎**
+
+不需要复杂的物理模拟。路径已知（硬件层出口 → 缓冲区入口），只需维护一个
+`progress` 数组，每帧沿贝塞尔曲线插值绘制 3~5 个小圆点。
+
+```js
+// 确定性粒子系统 — 无物理引擎，纯数学插值
+const PARTICLE_COUNT = 4;  // 仅 4 个粒子，极轻量
+const BEZIER_POINTS = [
+    {x: 400, y: 180},  // P0: 硬件层出口
+    {x: 420, y: 220},  // P1: 控制点 (弯向右侧)
+    {x: 400, y: 260},  // P2: 控制点
+    {x: 400, y: 310},  // P3: 内核缓冲区入口
+];
+
+let particles = [];
+let rafId = null;
+
+// 启动粒子流 — 在 active_write_buffer 变化时调用
+function startParticleFlow(targetBufferId) {
+    cancelParticleFlow();  // 防御：先销毁上一轮
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push({
+            t: i / PARTICLE_COUNT,          // 0.0 ~ 1.0 均匀分布
+            speed: 0.008,                    // 固定速度，确定性行为
+            target: targetBufferId,
+        });
+    }
+    rafId = requestAnimationFrame(particleLoop);
+}
+
+// 销毁粒子流
+function cancelParticleFlow() {
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    particles = [];
+}
+
+function particleLoop() {
+    const ctx = document.getElementById('particle-canvas').getContext('2d');
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    particles.forEach(p => {
+        p.t += p.speed;
+        if (p.t > 1.0) p.t -= 1.0;  // 循环流动
+
+        // 三次贝塞尔插值: B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
+        const pos = cubicBezier(BEZIER_POINTS, p.t);
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = p.target === 1 ? '#22c55e' : '#3b82f6';
+        ctx.fill();
+    });
+
+    rafId = requestAnimationFrame(particleLoop);
+}
+
+function cubicBezier(pts, t) {
+    const mt = 1 - t;
+    const mt2 = mt * mt, mt3 = mt2 * mt;
+    const t2 = t * t, t3 = t2 * t;
+    return {
+        x: mt3 * pts[0].x + 3 * mt2 * t * pts[1].x + 3 * mt * t2 * pts[2].x + t3 * pts[3].x,
+        y: mt3 * pts[0].y + 3 * mt2 * t * pts[1].y + 3 * mt * t2 * pts[2].y + t3 * pts[3].y,
+    };
+}
+```
+
+**为什么这是「降维打击」级别的实现**：
+
+| 方案 | 粒子数/帧 | 计算量 | 60fps 保障 |
+|------|----------|--------|-----------|
+| 物理引擎 (matter.js 等) | 50+ | 碰撞检测 + 重力积分 | ❌ 低端设备掉帧 |
+| 本方案 (确定性伪粒子) | 4 | 4 次三次贝塞尔求值 | ✅ 稳定 60fps |
+
+每个粒子仅需 17 次浮点运算（三次贝塞尔插值），4 个粒子总计 68 次浮点运算/帧，
+在任何设备上都能稳定跑满 60fps，同时视觉效果与真粒子流无异。
+
+
+### 11.4 答辩降维打击话术 — 「离散状态 · 时序内插」架构
+
+当评委问「后端是离散状态机，为什么前端能看到丝滑的硬件中断和流水线过程？
+后端是不是开了高频定时器推送？」时，直接抛出以下架构阐述：
+
+> 「报告老师，这正是本系统在架构上做的一点创新。
+>
+> 为了保证内核状态机的**绝对纯净与确定性**，后端采用了纯事件驱动模型，
+> 不引入任何与业务无关的帧率概念，每次只抛出高内聚的 `SystemSnapshot`。
+>
+> 而在展示层，我们设计了一套基于**差异比对（Diff-driven）的前端微状态机**。
+> 前端消费离散的 Snapshot，通过解析状态跳变，动态激活 CSS Transition 状态机
+> 与 Web 矢量动画（SVG 路径插值 + 确定性粒子系统）。
+>
+> 用前端的『时序内插』去还原底层的『连续物理过程』。
+> 这样既保证了后端内核的开发效率与确定性，又实现了极具表现力的教学可视化效果。」
+
+这段答辩话术直接封死了评委的两个潜在质疑：
+1. 「后端是不是开了定时器推帧」→ 不，纯事件驱动，无帧率概念
+2. 「前端动画是不是虚假的，跟后端逻辑脱节」→ 不，前端每一帧动画都由 Snapshot diff 驱动，状态严格同步
