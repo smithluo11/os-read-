@@ -112,32 +112,32 @@
       </defs>
 
       <!-- 用户层 → VFS -->
-      <line x1="200" y1="68" x2="200" y2="120" class="connector" id="conn-u-v"/>
+      <line x1="200" y1="65" x2="200" y2="135" class="connector" id="conn-u-v"/>
       <!-- VFS → 驱动层 -->
-      <line x1="200" y1="195" x2="200" y2="248" class="connector" id="conn-v-d"/>
+      <line x1="200" y1="210" x2="200" y2="275" class="connector" id="conn-v-d"/>
       <!-- 驱动层 → 硬件层 -->
-      <line x1="140" y1="325" x2="70" y2="390" class="connector" id="conn-d-h"/>
+      <line x1="140" y1="335" x2="70" y2="400" class="connector" id="conn-d-h"/>
       <!-- 硬件层 → 中断层 -->
-      <line x1="280" y1="425" x2="320" y2="390" class="connector" id="conn-h-i"/>
+      <line x1="280" y1="430" x2="320" y2="400" class="connector" id="conn-h-i"/>
       <!-- 乒乓回溯虚线 -->
-      <path d="M340,510 C380,510 380,310 340,310" class="connector loopback" id="conn-i-d" fill="none"/>
+      <path d="M340,520 C380,520 380,320 340,320" class="connector loopback" id="conn-i-d" fill="none"/>
 
-      <foreignObject x="130" y="138" width="140" height="24">
+      <foreignObject x="130" y="140" width="140" height="24">
         <div class="conn-label" id="irp-label">IRP ↓</div>
       </foreignObject>
-      <foreignObject x="310" y="440" width="90" height="24">
+      <foreignObject x="310" y="450" width="90" height="24">
         <div class="conn-label" id="irq-label">IRQ ↑</div>
       </foreignObject>
     </svg>
 
     <!-- 用户层 -->
-    <div class="layer-card" id="layer-USER" style="top:28px;left:50%;">
+    <div class="layer-card" id="layer-USER" style="top:24px;left:50%;">
       <span class="layer-tag">L0</span>
       <span class="layer-name">用户空间</span>
       <span class="layer-sub">sys_read(fd, buf, len)</span>
     </div>
     <!-- 设备无关层 VFS -->
-    <div class="layer-card" id="layer-VFS" style="top:148px;left:50%;">
+    <div class="layer-card" id="layer-VFS" style="top:140px;left:50%;">
       <span class="layer-tag">L1</span>
       <span class="layer-name">设备无关层 (VFS)</span>
       <span class="layer-sub" id="vfs-desc">等待系统调用...</span>
@@ -147,7 +147,7 @@
       </div>
     </div>
     <!-- 设备驱动层 -->
-    <div class="layer-card" id="layer-DRV" style="top:278px;left:50%;">
+    <div class="layer-card" id="layer-DRV" style="top:290px;left:50%;">
       <span class="layer-tag">L2</span>
       <span class="layer-name">设备驱动层</span>
       <span class="layer-sub" id="drv-desc">等待 IRP...</span>
@@ -156,7 +156,7 @@
     </div>
     <!-- 硬件层 + 中断层 -->
     <div class="hw-int-row">
-      <div class="layer-card hw-card" id="layer-HW" style="left:30px;">
+      <div class="layer-card hw-card" id="layer-HW">
         <span class="layer-tag">L4</span>
         <span class="layer-name">硬件层 (磁盘)</span>
         <span class="layer-sub">磁盘控制器</span>
@@ -165,7 +165,7 @@
           <code id="hw-status">STS: READY</code>
         </div>
       </div>
-      <div class="layer-card int-card" id="layer-INT" style="right:30px;">
+      <div class="layer-card int-card" id="layer-INT">
         <span class="layer-tag">L3</span>
         <span class="layer-name">中断处理层</span>
         <span class="layer-sub">ISR 中断服务</span>

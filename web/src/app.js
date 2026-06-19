@@ -47,6 +47,7 @@ function connect() {
         connStatus.textContent = '● Connected';
         connStatus.className = 'conn-status connected';
         btnInit.disabled = false;
+        btnStep.disabled = false;
     } catch (e) {
         log(`Connection failed: ${e.message}`);
         connStatus.textContent = '● Disconnected';
@@ -77,6 +78,7 @@ function doInit() {
     $('ubuf-display').textContent = ''; $('ubuf-len').textContent = '0';
     $('pbar').style.width = '0%'; $('chunk-stat').textContent = '0 / 1';
     clearAutoPlay();
+    btnStep.disabled = false;
 
     const addrStr = cfgAddr.value;
     const addr = addrStr.startsWith('0x') ? parseInt(addrStr, 16) : parseInt(addrStr, 10);
@@ -311,4 +313,3 @@ if (new URLSearchParams(window.location.search).get('debug') === '1')
 
 // Boot
 resizeCanvas();
-connect();
