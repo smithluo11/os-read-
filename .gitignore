@@ -22,3 +22,9 @@ Thumbs.db
 
 # 本地测试或临时日志
 *.log
+
+# 前端依赖与构建产物
+node_modules/
+web/src/generated/
+web/src/bundle.js
+package-lock.json

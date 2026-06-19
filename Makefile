@@ -8,6 +8,22 @@ proto:
 	@echo "Proto code generated successfully!"
 
 # ==============================================================================
+# Frontend (gRPC-Web JavaScript)
+# ==============================================================================
+
+.PHONY: proto-js
+proto-js:
+	@mkdir -p web/src/generated
+	protoc --proto_path=api/proto \
+	       --js_out=import_style=commonjs:web/src/generated \
+	       --grpc-web_out=import_style=commonjs,mode=grpcwebtext:web/src/generated \
+	       api/proto/io_simulation.proto
+	npx esbuild web/src/grpc-entry.js \
+		--bundle --format=iife --global-name=IOSimBundle \
+		--outfile=web/src/bundle.js --platform=browser
+	@echo "gRPC-Web JS bundle generated!"
+
+# ==============================================================================
 # Docker Deployment Targets
 # ==============================================================================
 

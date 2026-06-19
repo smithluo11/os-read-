@@ -1,0 +1,26 @@
+{
+  "name": "io-simulator-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smithluo11/os-read-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/smithluo11/os-read-/issues"
+  },
+  "homepage": "https://github.com/smithluo11/os-read-#readme",
+  "dependencies": {
+    "esbuild": "^0.28.1",
+    "google-protobuf": "^4.0.2",
+    "grpc-web": "^2.0.2"
+  }
+}
