@@ -436,7 +436,7 @@ select.sel {
 /* HW / INT bottom-row cards: override absolute positioning */
 .layer-card.hw-card,
 .layer-card.int-card {
-    width: 290px;
+    width: 330px;
     position: relative;
     transform: none;
     left: auto; right: auto; top: auto;
@@ -603,7 +603,7 @@ select.sel {
 
 .log-scroll {
     max-height:200px; overflow-y:auto;
-    font-family: var(--mono); font-size: 11px;
+    font-family: var(--mono); font-size: 13px;
     color: var(--ink-muted);
 }
 .log-scroll div {

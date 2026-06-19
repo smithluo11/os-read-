@@ -13,7 +13,7 @@
   
   .main-grid {
     display: grid !important;
-    grid-template-columns: 7fr 3fr !important; /* 7:3 宽屏比例 */
+    grid-template-columns: 6fr 4fr !important; /* 6:4 宽屏比例 */
     gap: 24px !important;
     padding: 24px !important;
     max-width: none !important; /* 彻底释放宽度 */
@@ -67,7 +67,7 @@
   /* 放大拓扑坐标系 */
   .topo-anchor {
     position: relative;
-    width: 640px;  /* 层级卡片大幅放大 */
+    width: 720px;  /* 层级卡片再次放大 */
     height: 750px;
     flex-shrink: 0;
   }
@@ -144,31 +144,31 @@
 <div class="main-grid">
   <main class="panel-visual">
     <div class="topo-anchor">
-      <svg class="topo-svg" viewBox="0 0 640 750" style="position:absolute; inset:0; width:100%; height:100%; overflow:visible;">
+      <svg class="topo-svg" viewBox="0 0 720 750" style="position:absolute; inset:0; width:100%; height:100%; overflow:visible;">
         <defs>
           <filter id="glow-active"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
 
-        <line x1="320" y1="55" x2="320" y2="140" class="connector" id="conn-u-v"/>
-        <line x1="320" y1="260" x2="320" y2="340" class="connector" id="conn-v-d"/>
-        <line x1="240" y1="420" x2="165" y2="500" class="connector" id="conn-d-h"/>
-        <line x1="475" y1="500" x2="490" y2="420" class="connector" id="conn-h-i"/>
-        <path d="M525,580 C590,580 590,380 525,380" class="connector loopback" id="conn-i-d" fill="none"/>
+        <line x1="360" y1="55" x2="360" y2="140" class="connector" id="conn-u-v"/>
+        <line x1="360" y1="260" x2="360" y2="340" class="connector" id="conn-v-d"/>
+        <line x1="270" y1="420" x2="185" y2="500" class="connector" id="conn-d-h"/>
+        <line x1="535" y1="500" x2="550" y2="420" class="connector" id="conn-h-i"/>
+        <path d="M585,580 C650,580 650,380 585,380" class="connector loopback" id="conn-i-d" fill="none"/>
 
         <!-- 数据返回路径 (上行, dashed cobalt, 与 IRP ↓ 镜像) -->
-        <line x1="350" y1="340" x2="350" y2="260" class="connector return-path" id="conn-ret-d-v"/>
-        <line x1="350" y1="140" x2="350" y2="55" class="connector return-path" id="conn-ret-v-u"/>
+        <line x1="390" y1="340" x2="390" y2="260" class="connector return-path" id="conn-ret-d-v"/>
+        <line x1="390" y1="140" x2="390" y2="55" class="connector return-path" id="conn-ret-v-u"/>
 
-        <foreignObject x="215" y="150" width="140" height="24"><div class="conn-label" id="irp-label">IRP ↓</div></foreignObject>
-        <foreignObject x="470" y="470" width="90" height="24"><div class="conn-label" id="irq-label">IRQ ↑</div></foreignObject>
-        <foreignObject x="360" y="150" width="120" height="24"><div class="conn-label" id="data-label" style="color:var(--cobalt);">DATA ↑</div></foreignObject>
+        <foreignObject x="245" y="150" width="140" height="24"><div class="conn-label" id="irp-label">IRP ↓</div></foreignObject>
+        <foreignObject x="530" y="470" width="90" height="24"><div class="conn-label" id="irq-label">IRQ ↑</div></foreignObject>
+        <foreignObject x="400" y="150" width="120" height="24"><div class="conn-label" id="data-label" style="color:var(--cobalt);">DATA ↑</div></foreignObject>
       </svg>
 
-      <div class="layer-card" id="layer-USER" style="position:absolute; top:0px; left:50%; transform:translateX(-50%); width:440px;">
+      <div class="layer-card" id="layer-USER" style="position:absolute; top:0px; left:50%; transform:translateX(-50%); width:500px;">
         <span class="layer-tag">L0</span><span class="layer-name">用户层 I/O 软件</span><span class="layer-sub">sys_read(fd, buf, len)</span>
       </div>
 
-      <div class="layer-card" id="layer-VFS" style="position:absolute; top:140px; left:50%; transform:translateX(-50%); width:500px;">
+      <div class="layer-card" id="layer-VFS" style="position:absolute; top:140px; left:50%; transform:translateX(-50%); width:560px;">
         <span class="layer-tag">L1</span><span class="layer-name">设备无关软件 (VFS)</span><span class="layer-sub" id="vfs-desc">等待系统调用...</span>
         <div class="buffers-row" id="vfs-buffers" style="display:flex; gap:10px; margin-top:12px; width:100%;">
           <div class="kbuf" id="kbuf1" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
@@ -176,13 +176,13 @@
         </div>
       </div>
 
-      <div class="layer-card" id="layer-DRV" style="position:absolute; top:340px; left:50%; transform:translateX(-50%); width:440px;">
+      <div class="layer-card" id="layer-DRV" style="position:absolute; top:340px; left:50%; transform:translateX(-50%); width:500px;">
         <span class="layer-tag">L2</span><span class="layer-name">设备驱动程序</span><span class="layer-sub" id="drv-desc">等待 IRP...</span>
         <div class="pbar-wrap" style="margin-top:12px;"><div class="pbar-fill" id="pbar"></div></div>
         <span class="chunk-stat" id="chunk-stat">0 / 1</span>
       </div>
 
-      <div class="hw-int-row" style="position:absolute; top:500px; left:50%; transform:translateX(-50%); width:600px; display:flex; justify-content:space-between; z-index:10;">
+      <div class="hw-int-row" style="position:absolute; top:500px; left:50%; transform:translateX(-50%); width:680px; display:flex; justify-content:space-between; z-index:10;">
         <div class="layer-card hw-card" id="layer-HW">
           <span class="layer-tag">L4</span><span class="layer-name">硬件层 (磁盘控制器)</span><span class="layer-sub">DMA 数据读取</span>
           <div class="regs" style="margin-top:12px;"><code id="hw-cmd">CMD: NO_OP</code><code id="hw-status">STS: READY</code></div>
