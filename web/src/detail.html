@@ -79,11 +79,15 @@
   }
   .io-row {
     display: flex; align-items: center; gap: 12px;
-    font-family: var(--mono); font-size: 11px;
+    font-family: var(--mono); font-size: 13px;
+  }
+  .io-row .detail {
+    font-family: var(--sans); font-size: 12px; color: var(--ink-muted);
+    margin-left: 4px;
   }
   .io-tag {
-    padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px;
-    font-family: var(--sans);
+    padding: 3px 10px; border-radius: 4px; font-weight: 700; font-size: 12px;
+    font-family: var(--sans); min-width: 38px; text-align: center;
   }
   .io-tag.in  { background: var(--phosphor-soft); color: var(--phosphor-dim); }
   .io-tag.out { background: var(--cobalt-soft); color: var(--cobalt); }
@@ -121,10 +125,13 @@
   /* Data structures */
   .ds-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .ds-tag {
-    font-family: var(--mono); font-size: 10px;
-    padding: 4px 10px; border-radius: 4px;
+    font-family: var(--mono); font-size: 12px;
+    padding: 6px 14px; border-radius: 6px;
     background: var(--bg-card); border: 1px solid var(--border-light);
     color: var(--ink-muted);
+  }
+  .ds-tag strong {
+    color: var(--phosphor-dim); font-weight: 700;
   }
 
   @media (max-width: 900px) {
@@ -169,8 +176,8 @@ var layers = {
   USER: {
     tag: 'L0', name: '用户层 I/O 软件',
     yPos: '10px', label: 'sys_read(fd, buf, len)',
-    input:  { text: '用户进程调用', detail: 'read(fd, buf, len) → int 0x80' },
-    output: { text: 'IRP ↓ 到 VFS', detail: '文件描述符 + 缓冲区地址 + 长度' },
+    input:  { text: '用户进程空间', detail: '应用程序调用 C 标准库 read(fd, buf, len)，触发 0x80 系统调用陷入内核' },
+    output: { text: 'IRP 请求包 → VFS 层', detail: '封装 {文件描述符 fd, 用户缓冲区地址 buf, 读取长度 len, 进程凭证 uid/gid} 传递给下层' },
     ops: [
       '用户进程调用 C 标准库函数 <code>read(fd, buf, len)</code>',
       '触发系统调用指令 <code>syscall</code> / <code>int 0x80</code>，CPU 从用户态切换到内核态',
@@ -180,13 +187,13 @@ var layers = {
       '调用 <code>vfs_read()</code> 将 IRP 传递给设备无关软件层'
     ],
     code: '<span class="cm">// 用户层 I/O 软件 — sys_read 入口</span>\n<span class="kw">ssize_t</span> <span class="fn">sys_read</span>(<span class="kw">int</span> fd, <span class="kw">void</span> *buf, <span class="kw">size_t</span> len) {\n    <span class="cm">// ① 参数校验</span>\n    <span class="kw">if</span> (fd < 0 || buf == NULL || len == 0)\n        <span class="kw">return</span> -EINVAL;\n    <span class="kw">if</span> (!access_ok(buf, len))\n        <span class="kw">return</span> -EFAULT;\n\n    <span class="cm">// ② 调用 VFS 层</span>\n    <span class="kw">return</span> <span class="fn">vfs_read</span>(fd, buf, len);\n}',
-    ds: ['file descriptor table', 'user_buffer*', 'IRP {fd,buf,len,uid,gid}']
+    ds: ['<strong>fd_table[fd]</strong> → 进程打开文件表', '<strong>user_buf*</strong> → 用户空间缓冲区指针 (0x10000000)', '<strong>IRP</strong> {fd, buf, len, uid, gid} → 请求包结构体']
   },
   VFS: {
     tag: 'L1', name: '设备无关软件 (VFS)',
     yPos: '90px', label: '路径解析 + 权限校验 + 缓冲分配',
-    input:  { text: 'IRP ← 用户层', detail: '{fd, buf, len, uid, gid}' },
-    output: { text: 'IRP ↓ 到驱动层', detail: '{inode, kbuf, sector, len}' },
+    input:  { text: 'IRP ← 用户层 I/O 软件', detail: '{文件描述符 fd, 缓冲区地址 buf, 读取长度 len, 用户凭证 uid/gid}' },
+    output: { text: 'IRP → 设备驱动程序', detail: '{inode 索引节点, 内核缓冲区 kbuf, 磁盘扇区号, 待读取字节数}' },
     ops: [
       '根据文件描述符 fd 查找进程的 <code>file*</code> 结构体，获取对应的 <code>inode</code> 和 <code>dentry</code>',
       '路径解析：从 dentry 缓存或磁盘读取目录项，确定文件在文件系统中的准确位置',
@@ -196,13 +203,13 @@ var layers = {
       '组装新的 IRP，包含 {inode, kernel_buffer, sector_offset, byte_count}，传递给设备驱动程序'
     ],
     code: '<span class="cm">// 设备无关软件 (VFS) — 核心校验与缓冲管理</span>\n<span class="kw">ssize_t</span> <span class="fn">vfs_read</span>(<span class="kw">struct</span> file *filp, <span class="kw">char</span> *buf, <span class="kw">size_t</span> len) {\n    <span class="kw">struct</span> inode *inode = filp->f_inode;\n\n    <span class="cm">// ① 权限校验</span>\n    <span class="kw">if</span> (!<span class="fn">acl_check_read</span>(inode, current_uid(), current_gid()))\n        <span class="kw">return</span> -EACCES;\n\n    <span class="cm">// ② 路径穿越防御</span>\n    <span class="kw">if</span> (<span class="fn">has_path_traversal</span>(filp->f_path))\n        <span class="kw">return</span> -EPERM;\n\n    <span class="cm">// ③ 分配内核缓冲区 (双缓冲乒乓)</span>\n    <span class="kw">struct</span> kbuf *kb = <span class="fn">dblbuf_alloc</span>(len);\n    kb->active_write = (kb->active_write + 1) % 2;\n\n    <span class="cm">// ④ 下发到驱动层</span>\n    <span class="kw">return</span> <span class="fn">drv_read</span>(filp, kb, len);\n}',
-    ds: ['file*', 'inode', 'dentry', 'kernel_buffer[2]', 'ACL (uid/gid mask)', '乒乓控制块']
+    ds: ['<strong>file*</strong> → 文件对象 (含读写偏移)', '<strong>inode</strong> → 索引节点 (权限位/文件大小)', '<strong>dentry</strong> → 目录项缓存 (路径→inode映射)', '<strong>kernel_buf[2]</strong> → 乒乓缓冲 A/B', '<strong>ACL mask</strong> → uid/gid 权限位掩码', '<strong>乒乓控制块</strong> → active_write / active_read']
   },
   DRV: {
     tag: 'L2', name: '设备驱动程序',
     yPos: '170px', label: '构造 IRP + 写寄存器 + 阻塞等待',
-    input:  { text: 'IRP ← VFS', detail: '{inode, kbuf, sector, len}' },
-    output: { text: 'CMD ↓ 到硬件', detail: 'CMD_READ + 扇区地址 → 设备寄存器' },
+    input:  { text: 'IRP ← 设备无关软件', detail: '{inode 索引节点, 内核缓冲区 kbuf, 扇区偏移量, 字节计数}' },
+    output: { text: '硬件指令 → 磁盘控制器', detail: 'CMD_READ 写入命令寄存器 + 扇区地址写入地址寄存器 → 进程阻塞等待中断' },
     ops: [
       '接收 VFS 层下发的 IRP，提取 inode、内核缓冲区指针、扇区偏移量、待读取字节数',
       '将逻辑 I/O 请求转换为硬件可执行的指令：<code>CMD_READ</code> 写入命令寄存器 + 扇区地址写入地址寄存器',
@@ -212,13 +219,13 @@ var layers = {
       '（等待中断唤醒后）从内核缓冲区拷贝数据，继续执行返回逻辑'
     ],
     code: '<span class="cm">// 设备驱动程序 — 硬件指令下发与进程阻塞</span>\n<span class="kw">ssize_t</span> <span class="fn">drv_read</span>(<span class="kw">struct</span> file *filp, <span class="kw">struct</span> kbuf *kb, <span class="kw">size_t</span> len) {\n    <span class="cm">// ① 构造 I/O 请求包</span>\n    <span class="kw">struct</span> irp *req = <span class="fn">irp_alloc</span>(filp, kb, len);\n\n    <span class="cm">// ② 写设备寄存器</span>\n    <span class="fn">outb</span>(CMD_READ,  DEV_CMD_REG);\n    <span class="fn">outb</span>(req->sector, DEV_ADDR_REG);\n    <span class="fn">outb</span>(req->count,  DEV_COUNT_REG);\n\n    <span class="cm">// ③ 进程阻塞，等待 I/O 完成</span>\n    <span class="fn">set_current_state</span>(TASK_BLOCKED);\n    <span class="fn">schedule</span>();  <span class="cm">// 让出 CPU</span>\n\n    <span class="cm">// ④ 被中断唤醒后：拷贝数据到用户缓冲区</span>\n    <span class="kw">return</span> <span class="fn">copy_to_user</span>(buf, kb->data, len);\n}',
-    ds: ['IRP', 'device registers (CMD/ADDR/COUNT)', 'wait_queue', 'DMA descriptor']
+    ds: ['<strong>IRP</strong> → I/O 请求包 (含文件/缓冲区/字节数)', '<strong>设备寄存器</strong> → CMD_REG / ADDR_REG / COUNT_REG', '<strong>wait_queue</strong> → 阻塞进程等待队列', '<strong>DMA descriptor</strong> → DMA 传输描述符 (源/目标/长度)']
   },
   INT: {
     tag: 'L3', name: '中断处理程序 (ISR)',
     yPos: '230px', label: 'IRQ 响应 + 唤醒进程 + 数据拷贝',
-    input:  { text: 'IRQ ← 硬件层', detail: '中断向量号 IRQ_DISK' },
-    output: { text: '唤醒信号 ↑ 到驱动', detail: 'wake_up_process(driver_task)' },
+    input:  { text: 'IRQ 中断信号 ← 磁盘控制器', detail: '硬件 DMA 完成后通过中断控制器发送 IRQ_DISK 信号线，CPU 查 IDT 跳转 ISR 入口' },
+    output: { text: '唤醒信号 → 驱动进程', detail: 'wake_up_process(driver_task) 将阻塞的驱动进程从 BLOCKED 置为 READY，调度后继续执行拷贝' },
     ops: [
       '硬件完成 DMA 传输后，通过中断控制器（PIC/APIC）向 CPU 发送 IRQ 信号',
       'CPU 暂停当前执行的进程，根据中断向量号查 IDT（中断描述符表），跳转到对应的 ISR 入口',
@@ -228,13 +235,13 @@ var layers = {
       'ISR 返回，CPU 恢复执行被中断的进程；调度器稍后将唤醒的驱动进程投入运行'
     ],
     code: '<span class="cm">// 中断处理程序 (ISR) — 异步响应与进程唤醒</span>\n<span class="kw">irqreturn_t</span> <span class="fn">disk_isr</span>(<span class="kw">int</span> irq, <span class="kw">void</span> *dev) {\n    <span class="cm">// ① 读取硬件状态</span>\n    <span class="kw">uint8_t</span> status = <span class="fn">inb</span>(DEV_STS_REG);\n    <span class="kw">if</span> (!(status & STS_DATA_READY))\n        <span class="kw">return</span> IRQ_NONE;\n\n    <span class="cm">// ② 从 DMA 缓冲区拷贝到内核缓冲区</span>\n    <span class="kw">uint8_t</span> *dma = <span class="fn">dma_get_buffer</span>();\n    <span class="fn">memcpy</span>(kbuf->data, dma, kbuf->len);\n\n    <span class="cm">// ③ 唤醒驱动层阻塞的进程</span>\n    <span class="fn">wake_up_process</span>(driver_task);\n    <span class="kw">return</span> IRQ_HANDLED;\n}',
-    ds: ['IDT (中断描述符表)', 'task_struct*', 'DMA buffer', '设备状态寄存器', '中断向量 IRQ_DISK']
+    ds: ['<strong>IDT</strong> → 中断描述符表 (向量号→ISR 入口地址)', '<strong>task_struct*</strong> → 被阻塞的驱动进程描述符', '<strong>DMA buffer</strong> → DMA 控制器管理的物理内存区域', '<strong>设备状态寄存器</strong> → STS_REG (STS_DATA_READY 标志位)', '<strong>中断向量号</strong> → IRQ_DISK = 14 (主 ATA 控制器)']
   },
   HW: {
     tag: 'L4', name: '硬件层 (磁盘控制器)',
     yPos: '280px', label: 'DMA 数据读取 + IRQ 发送',
-    input:  { text: 'CMD ← 驱动层', detail: 'CMD_READ + 扇区地址 → 设备寄存器' },
-    output: { text: 'IRQ ↑ 到中断层', detail: 'STS_DATA_READY → send_irq(IRQ_DISK)' },
+    input:  { text: '设备指令 ← 驱动程序', detail: '驱动层通过 outb() 将 CMD_READ + 扇区 LBA 地址写入设备 I/O 端口寄存器' },
+    output: { text: 'IRQ 中断信号 → ISR', detail: 'DMA 传输完成 → 状态寄存器置 STS_DATA_READY → 中断控制器拉高 IRQ_DISK 线 → CPU 响应中断' },
     ops: [
       '设备控制器从命令寄存器读取驱动层写入的 <code>CMD_READ</code> 指令',
       '解析扇区地址，启动磁头寻道，移动到目标扇区位置',
@@ -244,7 +251,7 @@ var layers = {
       '通过中断控制器向 CPU 发送 <code>IRQ_DISK</code> 中断信号，通知 CPU 数据已就绪'
     ],
     code: '<span class="cm">// 硬件层 — 磁盘控制器逻辑 (硬件描述)</span>\n<span class="kw">void</span> <span class="fn">disk_controller</span>(<span class="kw">void</span>) {\n    <span class="cm">// ① 读取命令寄存器</span>\n    <span class="kw">uint8_t</span> cmd = DEV_CMD_REG;\n    <span class="kw">if</span> (cmd != CMD_READ) <span class="kw">return</span>;\n\n    <span class="cm">// ② DMA 读取磁盘扇区</span>\n    <span class="kw">uint32_t</span> sector = DEV_ADDR_REG;\n    <span class="kw">uint8_t</span> *dma_buf = <span class="fn">dma_alloc</span>(SECTOR_SIZE);\n    <span class="fn">disk_read_sector</span>(sector, dma_buf);\n\n    <span class="cm">// ③ 设置完成状态 + 发送中断</span>\n    DEV_STS_REG = STS_DATA_READY;\n    <span class="fn">send_irq</span>(IRQ_DISK);\n}',
-    ds: ['设备寄存器 (CMD/STS/DATA)', 'DMA 控制器', '磁盘控制器', '中断控制器 (PIC/APIC)']
+    ds: ['<strong>CMD_REG</strong> → 命令寄存器 (CMD_READ / CMD_WRITE)', '<strong>STS_REG</strong> → 状态寄存器 (BUSY / DATA_READY / ERROR)', '<strong>DATA_REG</strong> → 数据寄存器 (DMA 目标)', '<strong>DMA 控制器</strong> → 8237 或板载 DMA 引擎', '<strong>PIC/APIC</strong> → 可编程中断控制器 (IRQ 路由到 CPU)']
   }
 };
 
@@ -267,10 +274,10 @@ mini.innerHTML = allKeys.map(function(k) {
 
 // IO flow
 var flow = document.getElementById('io-flow');
-flow.innerHTML = '<div class="io-row"><span class="io-tag in">输入</span><span>' + data.input.text + '</span></div>'
-  + '<div class="io-row"><span class="io-tag in" style="visibility:hidden">输入</span><span style="color:var(--ink-dim);font-size:10px;">' + data.input.detail + '</span></div>'
-  + '<div class="io-row"><span class="io-tag out">输出</span><span>' + data.output.text + '</span></div>'
-  + '<div class="io-row"><span class="io-tag out" style="visibility:hidden">输出</span><span style="color:var(--ink-dim);font-size:10px;">' + data.output.detail + '</span></div>';
+flow.innerHTML = '<div class="io-row"><span class="io-tag in">输入</span><span style="font-weight:600;">' + data.input.text + '</span></div>'
+  + '<div class="io-row"><span class="io-tag in" style="visibility:hidden">输入</span><span class="detail">' + data.input.detail + '</span></div>'
+  + '<div class="io-row"><span class="io-tag out">输出</span><span style="font-weight:600;">' + data.output.text + '</span></div>'
+  + '<div class="io-row"><span class="io-tag out" style="visibility:hidden">输出</span><span class="detail">' + data.output.detail + '</span></div>';
 
 // Operations
 var opList = document.getElementById('op-list');
