@@ -340,7 +340,19 @@ select.sel {
     stroke: var(--cyan);
     animation: dash-march 0.6s linear infinite;
 }
+.connector.return-path {
+    stroke: var(--cobalt);
+    stroke-width: 1.8;
+    stroke-dasharray: 5 4;
+    opacity: 0;
+    transition: opacity 0.5s, stroke 0.5s;
+}
+.connector.return-path.active {
+    opacity: 1;
+    animation: dash-march-up 0.5s linear infinite;
+}
 @keyframes dash-march { to { stroke-dashoffset: -18; } }
+@keyframes dash-march-up { to { stroke-dashoffset: -18; } }
 
 .conn-label {
     font-family: var(--mono); font-size: 9px;
@@ -360,9 +372,15 @@ select.sel {
     border-radius: var(--radius);
     padding: 10px 12px;
     z-index: 10;
+    cursor: pointer;
     transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
     transform: translateX(-50%);
     box-shadow: var(--shadow-sm);
+}
+.layer-card:hover {
+    border-color: var(--phosphor);
+    box-shadow: 0 0 12px var(--phosphor-soft), var(--shadow-md);
+    transform: translateX(-50%) scale(1.02);
 }
 .layer-card::before {
     content: '';

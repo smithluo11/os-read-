@@ -131,6 +131,14 @@ function onSnapshot(snapMsg) {
     if (activeLayer === 'DRV' && prevLayer === 'INT') $('conn-i-d').classList.add('active');
     else $('conn-i-d').classList.remove('active');
 
+    // 数据返回路径：当用户缓冲区收到数据时激活
+    const hasData = snap.memoryState && snap.memoryState.userBufferData && snap.memoryState.userBufferData.length > 0;
+    document.querySelectorAll('.connector.return-path').forEach(function(el) {
+        el.classList.toggle('active', hasData);
+    });
+    const dataLabel = document.getElementById('data-label');
+    if (dataLabel) dataLabel.style.opacity = hasData ? '1' : '0.3';
+
     if (snap.stepDescription) $('vfs-desc').textContent = snap.stepDescription.substring(0, 60);
 
     if (snap.processState) {
@@ -285,6 +293,15 @@ cfgBytes.addEventListener('input', () => valBytes.textContent = cfgBytes.value);
 cfgDblBuf.addEventListener('change', () => $('lbl-dblbuf').textContent = cfgDblBuf.checked ? '双缓冲' : '单缓冲');
 
 if (new URLSearchParams(window.location.search).get('debug') === '1') btnAuto.classList.remove('hidden');
+
+// ---- Layer card click → detail page ----
+document.querySelectorAll('.layer-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+        var id = card.id;
+        var layer = id.replace('layer-', '');
+        window.location.href = 'detail.html?layer=' + layer;
+    });
+});
 
 // ---- Accordion toggle ----
 document.querySelectorAll('.accordion-header').forEach(function (header) {

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>层级详情 — OS I/O 模拟器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { overflow: hidden; }
+  .detail-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 24px; height: 56px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-back {
+    font-family: var(--sans); font-size: 12px; font-weight: 600;
+    padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; background: var(--bg-panel); color: var(--ink-muted);
+    transition: all var(--transition-fast);
+  }
+  .btn-back:hover { color: var(--phosphor); border-color: var(--phosphor); }
+  .detail-bar .logo { font-family: var(--mono); font-weight: 700; font-size: 16px; color: var(--phosphor); letter-spacing: 2px; }
+  .detail-bar .sep { color: var(--ink-dim); font-size: 13px; margin: 0 4px; }
+  .detail-bar .layer-title { font-family: var(--sans); font-weight: 700; font-size: 14px; color: var(--ink-bright); }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px; padding: 24px;
+    height: calc(100vh - 56px);
+    box-sizing: border-box;
+  }
+
+  .detail-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .detail-card.ops-card {
+    overflow-y: auto;
+  }
+
+  .detail-card h3 {
+    font-family: var(--sans); font-size: 13px; font-weight: 700;
+    color: var(--ink-bright); margin-bottom: 14px;
+    text-transform: uppercase; letter-spacing: 1px;
+    border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+  }
+
+  /* Mini topology */
+  .mini-topo {
+    position: relative; width: 100%; height: 200px;
+    background: var(--bg-deep); border-radius: var(--radius);
+    border: 1px solid var(--border-light); margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .mini-layer {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 10px; font-size: 10px;
+    font-family: var(--sans); white-space: nowrap;
+    transition: all 0.3s;
+  }
+  .mini-layer.highlight {
+    border-color: var(--phosphor); background: var(--phosphor-soft);
+    font-weight: 700; color: var(--phosphor-dim);
+  }
+
+  /* IO flow */
+  .io-flow {
+    display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;
+  }
+  .io-row {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 11px;
+  }
+  .io-tag {
+    padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 10px;
+    font-family: var(--sans);
+  }
+  .io-tag.in  { background: var(--phosphor-soft); color: var(--phosphor-dim); }
+  .io-tag.out { background: var(--cobalt-soft); color: var(--cobalt); }
+
+  /* Operations */
+  .op-list {
+    list-style: none; padding: 0; counter-reset: op;
+  }
+  .op-list li {
+    counter-increment: op; padding: 9px 0 9px 32px;
+    position: relative; font-size: 12px; line-height: 1.7;
+    color: var(--ink); border-bottom: 1px solid var(--border-light);
+    font-family: var(--sans);
+  }
+  .op-list li::before {
+    content: counter(op);
+    position: absolute; left: 0; top: 9px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--phosphor-soft); color: var(--phosphor-dim);
+    font-size: 10px; font-weight: 700; text-align: center; line-height: 20px;
+    font-family: var(--mono);
+  }
+
+  /* Code block */
+  .code-block {
+    background: var(--bg-deep); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+    overflow-x: auto; font-family: var(--mono); font-size: 10px;
+    line-height: 1.7; color: var(--ink);
+  }
+  .code-block .kw { color: var(--cyan); }
+  .code-block .fn { color: var(--phosphor-dim); font-weight: 600; }
+  .code-block .cm { color: var(--ink-dim); font-style: italic; }
+
+  /* Data structures */
+  .ds-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .ds-tag {
+    font-family: var(--mono); font-size: 10px;
+    padding: 4px 10px; border-radius: 4px;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    color: var(--ink-muted);
+  }
+
+  @media (max-width: 900px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="detail-bar">
+  <button class="btn-back" onclick="history.back()">← 返回拓扑图</button>
+  <span class="logo">IO::SIM</span>
+  <span class="sep">/</span>
+  <span class="layer-title" id="detail-title">层级详情</span>
+</div>
+
+<div class="detail-grid">
+  <!-- 左栏：层级概览 -->
+  <div class="detail-card">
+    <h3>层级定位</h3>
+    <div class="mini-topo" id="mini-topo"></div>
+
+    <div class="io-flow" id="io-flow"></div>
+
+    <h3>关键数据结构</h3>
+    <div class="ds-tags" id="ds-tags"></div>
+  </div>
+
+  <!-- 右栏：操作流程 + 代码 -->
+  <div class="detail-card ops-card">
+    <h3>read() 流程中的操作步骤</h3>
+    <ol class="op-list" id="op-list"></ol>
+
+    <h3 style="margin-top:20px;">核心逻辑 / 伪代码</h3>
+    <div class="code-block" id="code-block"></div>
+  </div>
+</div>
+
+<script>
+// ---- Layer data ----
+var layers = {
+  USER: {
+    tag: 'L0', name: '用户层 I/O 软件',
+    yPos: '15px', label: 'sys_read(fd, buf, len)',
+    input:  { text: '用户进程调用', detail: 'read(fd, buf, len) → int 0x80' },
+    output: { text: 'IRP ↓ 到 VFS', detail: '文件描述符 + 缓冲区地址 + 长度' },
+    ops: [
+      '用户进程调用 C 标准库函数 <code>read(fd, buf, len)</code>',
+      '触发系统调用指令 <code>syscall</code> / <code>int 0x80</code>，CPU 从用户态切换到内核态',
+      '内核入口 <code>sys_read()</code> 进行参数合法性校验：fd 是否有效？buf 指针是否在用户地址空间？len 是否合法？',
+      '若参数非法，立即返回 <code>-EINVAL</code> 或 <code>-EFAULT</code> 错误码',
+      '参数校验通过后，构造 IRP（I/O Request Packet），包含 {fd, buf, len, uid, gid}',
+      '调用 <code>vfs_read()</code> 将 IRP 传递给设备无关软件层'
+    ],
+    code: '<span class="cm">// 用户层 I/O 软件 — sys_read 入口</span>\n<span class="kw">ssize_t</span> <span class="fn">sys_read</span>(<span class="kw">int</span> fd, <span class="kw">void</span> *buf, <span class="kw">size_t</span> len) {\n    <span class="cm">// ① 参数校验</span>\n    <span class="kw">if</span> (fd < 0 || buf == NULL || len == 0)\n        <span class="kw">return</span> -EINVAL;\n    <span class="kw">if</span> (!access_ok(buf, len))\n        <span class="kw">return</span> -EFAULT;\n\n    <span class="cm">// ② 调用 VFS 层</span>\n    <span class="kw">return</span> <span class="fn">vfs_read</span>(fd, buf, len);\n}',
+    ds: ['file descriptor table', 'user_buffer*', 'IRP {fd,buf,len,uid,gid}']
+  },
+  VFS: {
+    tag: 'L1', name: '设备无关软件 (VFS)',
+    yPos: '65px', label: '路径解析 + 权限校验 + 缓冲分配',
+    input:  { text: 'IRP ← 用户层', detail: '{fd, buf, len, uid, gid}' },
+    output: { text: 'IRP ↓ 到驱动层', detail: '{inode, kbuf, sector, len}' },
+    ops: [
+      '根据文件描述符 fd 查找进程的 <code>file*</code> 结构体，获取对应的 <code>inode</code> 和 <code>dentry</code>',
+      '路径解析：从 dentry 缓存或磁盘读取目录项，确定文件在文件系统中的准确位置',
+      'ACL 权限校验：检查当前进程的 UID/GID 是否对该 inode 拥有读权限（<code>acl_check_read()</code>）',
+      '路径穿越防御：检测路径中是否包含 <code>../</code> 等越权跳转，若检测到则拒绝并返回 <code>-EPERM</code>',
+      '根据 <code>use_double_buffer</code> 配置，分配内核缓冲区（双缓冲模式：乒乓切换 A/B；单缓冲模式：仅使用 A）',
+      '组装新的 IRP，包含 {inode, kernel_buffer, sector_offset, byte_count}，传递给设备驱动程序'
+    ],
+    code: '<span class="cm">// 设备无关软件 (VFS) — 核心校验与缓冲管理</span>\n<span class="kw">ssize_t</span> <span class="fn">vfs_read</span>(<span class="kw">struct</span> file *filp, <span class="kw">char</span> *buf, <span class="kw">size_t</span> len) {\n    <span class="kw">struct</span> inode *inode = filp->f_inode;\n\n    <span class="cm">// ① 权限校验</span>\n    <span class="kw">if</span> (!<span class="fn">acl_check_read</span>(inode, current_uid(), current_gid()))\n        <span class="kw">return</span> -EACCES;\n\n    <span class="cm">// ② 路径穿越防御</span>\n    <span class="kw">if</span> (<span class="fn">has_path_traversal</span>(filp->f_path))\n        <span class="kw">return</span> -EPERM;\n\n    <span class="cm">// ③ 分配内核缓冲区 (双缓冲乒乓)</span>\n    <span class="kw">struct</span> kbuf *kb = <span class="fn">dblbuf_alloc</span>(len);\n    kb->active_write = (kb->active_write + 1) % 2;\n\n    <span class="cm">// ④ 下发到驱动层</span>\n    <span class="kw">return</span> <span class="fn">drv_read</span>(filp, kb, len);\n}',
+    ds: ['file*', 'inode', 'dentry', 'kernel_buffer[2]', 'ACL (uid/gid mask)', '乒乓控制块']
+  },
+  DRV: {
+    tag: 'L2', name: '设备驱动程序',
+    yPos: '115px', label: '构造 IRP + 写寄存器 + 阻塞等待',
+    input:  { text: 'IRP ← VFS', detail: '{inode, kbuf, sector, len}' },
+    output: { text: 'CMD ↓ 到硬件', detail: 'CMD_READ + 扇区地址 → 设备寄存器' },
+    ops: [
+      '接收 VFS 层下发的 IRP，提取 inode、内核缓冲区指针、扇区偏移量、待读取字节数',
+      '将逻辑 I/O 请求转换为硬件可执行的指令：<code>CMD_READ</code> 写入命令寄存器 + 扇区地址写入地址寄存器',
+      '调用 <code>outb()</code> 将指令写入设备寄存器（I/O 端口映射或 MMIO）',
+      '将当前进程状态设置为 <code>TASK_BLOCKED</code>，加入设备等待队列',
+      '调用 <code>schedule()</code> 触发进程调度，CPU 让出给其他就绪进程',
+      '（等待中断唤醒后）从内核缓冲区拷贝数据，继续执行返回逻辑'
+    ],
+    code: '<span class="cm">// 设备驱动程序 — 硬件指令下发与进程阻塞</span>\n<span class="kw">ssize_t</span> <span class="fn">drv_read</span>(<span class="kw">struct</span> file *filp, <span class="kw">struct</span> kbuf *kb, <span class="kw">size_t</span> len) {\n    <span class="cm">// ① 构造 I/O 请求包</span>\n    <span class="kw">struct</span> irp *req = <span class="fn">irp_alloc</span>(filp, kb, len);\n\n    <span class="cm">// ② 写设备寄存器</span>\n    <span class="fn">outb</span>(CMD_READ,  DEV_CMD_REG);\n    <span class="fn">outb</span>(req->sector, DEV_ADDR_REG);\n    <span class="fn">outb</span>(req->count,  DEV_COUNT_REG);\n\n    <span class="cm">// ③ 进程阻塞，等待 I/O 完成</span>\n    <span class="fn">set_current_state</span>(TASK_BLOCKED);\n    <span class="fn">schedule</span>();  <span class="cm">// 让出 CPU</span>\n\n    <span class="cm">// ④ 被中断唤醒后：拷贝数据到用户缓冲区</span>\n    <span class="kw">return</span> <span class="fn">copy_to_user</span>(buf, kb->data, len);\n}',
+    ds: ['IRP', 'device registers (CMD/ADDR/COUNT)', 'wait_queue', 'DMA descriptor']
+  },
+  INT: {
+    tag: 'L3', name: '中断处理程序 (ISR)',
+    yPos: '150px', label: 'IRQ 响应 + 唤醒进程 + 数据拷贝',
+    input:  { text: 'IRQ ← 硬件层', detail: '中断向量号 IRQ_DISK' },
+    output: { text: '唤醒信号 ↑ 到驱动', detail: 'wake_up_process(driver_task)' },
+    ops: [
+      '硬件完成 DMA 传输后，通过中断控制器（PIC/APIC）向 CPU 发送 IRQ 信号',
+      'CPU 暂停当前执行的进程，根据中断向量号查 IDT（中断描述符表），跳转到对应的 ISR 入口',
+      'ISR 读取设备状态寄存器（<code>inb(DEV_STS_REG)</code>），确认 DMA 传输是否成功',
+      '若状态为 STS_DATA_READY，从 DMA 缓冲区读取数据写入内核缓冲区 kbuf',
+      '调用 <code>wake_up_process()</code> 唤醒在驱动层阻塞等待的进程（状态从 BLOCKED → READY）',
+      'ISR 返回，CPU 恢复执行被中断的进程；调度器稍后将唤醒的驱动进程投入运行'
+    ],
+    code: '<span class="cm">// 中断处理程序 (ISR) — 异步响应与进程唤醒</span>\n<span class="kw">irqreturn_t</span> <span class="fn">disk_isr</span>(<span class="kw">int</span> irq, <span class="kw">void</span> *dev) {\n    <span class="cm">// ① 读取硬件状态</span>\n    <span class="kw">uint8_t</span> status = <span class="fn">inb</span>(DEV_STS_REG);\n    <span class="kw">if</span> (!(status & STS_DATA_READY))\n        <span class="kw">return</span> IRQ_NONE;\n\n    <span class="cm">// ② 从 DMA 缓冲区拷贝到内核缓冲区</span>\n    <span class="kw">uint8_t</span> *dma = <span class="fn">dma_get_buffer</span>();\n    <span class="fn">memcpy</span>(kbuf->data, dma, kbuf->len);\n\n    <span class="cm">// ③ 唤醒驱动层阻塞的进程</span>\n    <span class="fn">wake_up_process</span>(driver_task);\n    <span class="kw">return</span> IRQ_HANDLED;\n}',
+    ds: ['IDT (中断描述符表)', 'task_struct*', 'DMA buffer', '设备状态寄存器', '中断向量 IRQ_DISK']
+  },
+  HW: {
+    tag: 'L4', name: '硬件层 (磁盘控制器)',
+    yPos: '175px', label: 'DMA 数据读取 + IRQ 发送',
+    input:  { text: 'CMD ← 驱动层', detail: 'CMD_READ + 扇区地址 → 设备寄存器' },
+    output: { text: 'IRQ ↑ 到中断层', detail: 'STS_DATA_READY → send_irq(IRQ_DISK)' },
+    ops: [
+      '设备控制器从命令寄存器读取驱动层写入的 <code>CMD_READ</code> 指令',
+      '解析扇区地址，启动磁头寻道，移动到目标扇区位置',
+      '启动 DMA（直接内存访问）引擎：磁盘数据直接通过 DMA 写入系统内存，无需 CPU 逐字节搬运',
+      'DMA 传输过程中 CPU 可继续执行其他任务（DMA 控制器独立工作）',
+      'DMA 传输完成后，磁盘控制器将状态寄存器设置为 <code>STS_DATA_READY</code>',
+      '通过中断控制器向 CPU 发送 <code>IRQ_DISK</code> 中断信号，通知 CPU 数据已就绪'
+    ],
+    code: '<span class="cm">// 硬件层 — 磁盘控制器逻辑 (硬件描述)</span>\n<span class="kw">void</span> <span class="fn">disk_controller</span>(<span class="kw">void</span>) {\n    <span class="cm">// ① 读取命令寄存器</span>\n    <span class="kw">uint8_t</span> cmd = DEV_CMD_REG;\n    <span class="kw">if</span> (cmd != CMD_READ) <span class="kw">return</span>;\n\n    <span class="cm">// ② DMA 读取磁盘扇区</span>\n    <span class="kw">uint32_t</span> sector = DEV_ADDR_REG;\n    <span class="kw">uint8_t</span> *dma_buf = <span class="fn">dma_alloc</span>(SECTOR_SIZE);\n    <span class="fn">disk_read_sector</span>(sector, dma_buf);\n\n    <span class="cm">// ③ 设置完成状态 + 发送中断</span>\n    DEV_STS_REG = STS_DATA_READY;\n    <span class="fn">send_irq</span>(IRQ_DISK);\n}',
+    ds: ['设备寄存器 (CMD/STS/DATA)', 'DMA 控制器', '磁盘控制器', '中断控制器 (PIC/APIC)']
+  }
+};
+
+// ---- Router ----
+var params = new URLSearchParams(window.location.search);
+var layerKey = params.get('layer') || 'USER';
+if (!layers[layerKey]) layerKey = 'USER';
+var data = layers[layerKey];
+
+document.getElementById('detail-title').textContent = data.tag + ' ' + data.name;
+
+// Mini topology
+var mini = document.getElementById('mini-topo');
+var allKeys = ['USER', 'VFS', 'DRV', 'INT', 'HW'];
+mini.innerHTML = allKeys.map(function(k) {
+  var l = layers[k];
+  var hl = (k === layerKey) ? ' highlight' : '';
+  return '<div class="mini-layer' + hl + '" style="top:' + l.yPos + '">' + l.tag + ' ' + l.name + '</div>';
+}).join('');
+
+// IO flow
+var flow = document.getElementById('io-flow');
+flow.innerHTML = '<div class="io-row"><span class="io-tag in">输入</span><span>' + data.input.text + '</span></div>'
+  + '<div class="io-row"><span class="io-tag in" style="visibility:hidden">输入</span><span style="color:var(--ink-dim);font-size:10px;">' + data.input.detail + '</span></div>'
+  + '<div class="io-row"><span class="io-tag out">输出</span><span>' + data.output.text + '</span></div>'
+  + '<div class="io-row"><span class="io-tag out" style="visibility:hidden">输出</span><span style="color:var(--ink-dim);font-size:10px;">' + data.output.detail + '</span></div>';
+
+// Operations
+var opList = document.getElementById('op-list');
+opList.innerHTML = data.ops.map(function(op) { return '<li>' + op + '</li>'; }).join('');
+
+// Code
+document.getElementById('code-block').innerHTML = '<pre>' + data.code + '</pre>';
+
+// Data structures
+var dsTags = document.getElementById('ds-tags');
+dsTags.innerHTML = data.ds.map(function(d) { return '<span class="ds-tag">' + d + '</span>'; }).join('');
+</script>
+</body>
+</html>
