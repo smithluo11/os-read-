@@ -15,8 +15,8 @@
   .main-grid {
     display: grid !important;
     grid-template-columns: minmax(300px, 1.2fr) 440px minmax(320px, 1fr) !important;
-    gap: 30px !important;
-    padding: 30px !important;
+    gap: 16px !important;
+    padding: 16px !important;
     max-width: 1600px;
     margin: 0 auto;
     height: calc(100vh - 60px) !important; /* 锁定屏幕总高度 */
@@ -26,10 +26,10 @@
   /* 2. 左右两侧面板：强制占满 100% 高度，开启 Flex 纵向排布 */
   .panel-control, .panel-info {
     height: 100% !important; /* 关键：向下撑满 */
-    padding: 24px !important;
+    padding: 16px !important;
     border-radius: 12px;
     border: 1px solid var(--border) !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     background: var(--bg-panel) !important;
     display: flex !important;
     flex-direction: column !important;
@@ -38,10 +38,11 @@
 
   /* 3. 左侧控制面板：自动均匀分配垂直空间，告别上半截拥挤 */
   .panel-control {
-    justify-content: space-between !important; 
+    justify-content: flex-start !important;
+    gap: 8px !important;
   }
   .panel-control .field {
-    margin-bottom: 0 !important; /* 间距交给 Flex 自动计算 */
+    margin-bottom: 0 !important;
   }
   .panel-control hr {
     margin: 4px 0 !important;
@@ -49,7 +50,7 @@
 
   /* 4. 右侧信息面板：加大卡片间距，最后一个日志框强行撑满底部 */
   .panel-info {
-    gap: 20px !important;
+    gap: 10px !important;
   }
   .info-card {
     margin: 0 !important;
@@ -171,8 +172,8 @@
       
       <svg class="topo-svg" viewBox="0 0 400 700" style="position:absolute; inset:0; width:100%; height:100%;">
         <defs>
-          <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/></marker>
-          <marker id="arrow-down-active" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563eb"/></marker>
+          <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#c2c7ce"/></marker>
+          <marker id="arrow-down-active" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#0891b2"/></marker>
           <filter id="glow-active"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
 
