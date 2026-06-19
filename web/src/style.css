@@ -418,7 +418,7 @@ select.sel {
 /* HW / INT bottom-row cards: override absolute positioning */
 .layer-card.hw-card,
 .layer-card.int-card {
-    width: 220px;
+    width: 250px;
     position: relative;
     transform: none;
     left: auto; right: auto; top: auto;
@@ -555,7 +555,12 @@ select.sel {
     transition: transform 0.2s ease;
 }
 .accordion-body { display: none; padding-top: 6px; }
-.accordion.open .accordion-body { display: block; }
+.accordion.open .accordion-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
 .accordion.open .accordion-arrow { transform: rotate(180deg); }
 
 .info-card code {
