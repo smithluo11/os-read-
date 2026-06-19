@@ -9,30 +9,78 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-  /* 重写三栏布局：中间固定 400px，两边自适应平分剩余空间 */
+  /* ====== 终极排版重写：全高伸展版 ====== */
+  
+  /* 1. 全局三栏重构 */
   .main-grid {
-    display: grid;
-    grid-template-columns: minmax(280px, 1fr) 400px minmax(300px, 1fr);
-    gap: 20px;
-    padding: 20px;
-    max-width: 1400px;
+    display: grid !important;
+    grid-template-columns: minmax(300px, 1.2fr) 440px minmax(320px, 1fr) !important;
+    gap: 30px !important;
+    padding: 30px !important;
+    max-width: 1600px;
     margin: 0 auto;
+    height: calc(100vh - 60px) !important; /* 锁定屏幕总高度 */
     box-sizing: border-box;
   }
 
-  /* 拓扑区容器锁定 400px，与内部 SVG/Cards 共用同一坐标系 */
-  .panel-topology {
-    width: 400px !important;
-    min-width: 400px !important;
-    position: relative;
-    overflow: hidden;
-    background: transparent;
+  /* 2. 左右两侧面板：强制占满 100% 高度，开启 Flex 纵向排布 */
+  .panel-control, .panel-info {
+    height: 100% !important; /* 关键：向下撑满 */
+    padding: 24px !important;
+    border-radius: 12px;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    background: var(--surface) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box;
   }
 
+  /* 3. 左侧控制面板：自动均匀分配垂直空间，告别上半截拥挤 */
+  .panel-control {
+    justify-content: space-between !important; 
+  }
+  .panel-control .field {
+    margin-bottom: 0 !important; /* 间距交给 Flex 自动计算 */
+  }
+  .panel-control hr {
+    margin: 4px 0 !important;
+  }
+
+  /* 4. 右侧信息面板：加大卡片间距，最后一个日志框强行撑满底部 */
   .panel-info {
+    gap: 20px !important;
+  }
+  .info-card {
+    margin: 0 !important;
+  }
+  .info-card.log-card {
+    flex: 1; /* 关键魔法：占据剩下的所有垂直空间 */
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    overflow: hidden;
+  }
+  .info-card.log-card .log-scroll {
+    flex: 1;
+    max-height: none !important;
+    height: 0; /* Flexbox 经典滚动条占位魔法，防止内容把卡片撑爆 */
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-right: 4px;
+  }
+
+  /* 5. 中间拓扑区：保持居中与坐标系锚定 */
+  .panel-topology {
+    display: flex;
+    justify-content: center;
+    background: transparent !important;
+    padding-top: 10px;
+  }
+  .topo-anchor {
+    position: relative;
+    width: 400px;
+    height: 700px;
+    flex-shrink: 0;
   }
 </style>
 </head>
@@ -55,15 +103,12 @@
 </header>
 
 <div class="main-grid">
-  <!-- 左侧：控制面板 -->
   <aside class="panel-control">
     <h2 class="panel-title">请求配置</h2>
 
     <div class="field">
       <label>后端地址</label>
-      <div class="row-input">
-        <input type="text" id="cfg-host" class="inp" value="http://localhost:18083" style="flex:1">
-      </div>
+      <input type="text" id="cfg-host" class="inp full" value="http://localhost:18083">
     </div>
 
     <div class="field">
@@ -82,26 +127,26 @@
         <option value="/home/user1/notes.txt">/home/user1/notes.txt（普通文件）</option>
         <option value="/etc/shadow">/etc/shadow（系统敏感文件）</option>
         <option value="../../etc/shadow">../../etc/shadow（路径穿越）</option>
-        <option value="/tmp/data.bin">/tmp/data.bin（散设备文件）</option>
+        <option value="/tmp/data.bin">/tmp/data.bin（设备文件）</option>
         <option value="/nonexistent">/nonexistent（文件不存在）</option>
       </select>
     </div>
 
     <div class="field">
       <label>读取字节数：<strong id="val-bytes">16384</strong></label>
-      <input type="range" id="cfg-bytes" min="100" max="65536" value="16384" step="100">
+      <input type="range" id="cfg-bytes" min="100" max="65536" value="16384" step="100" class="full">
     </div>
 
     <div class="field">
       <label>用户缓冲区地址：<code id="val-addr">0x10000000</code></label>
       <select id="cfg-addr" class="sel full">
         <option value="0x10000000">0x10000000（安全）</option>
-        <option value="0xFFFFFFFF">0xFFFFFFFF（非法越界）</option>
+        <option value="0xFFFFFFFF">0xFFFFFFFF（越界）</option>
       </select>
     </div>
 
     <div class="field row">
-      <label>双缓冲 (Ping-Pong)</label>
+      <label>双缓冲机制</label>
       <label class="toggle">
         <input type="checkbox" id="cfg-dblbuf" checked>
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -110,9 +155,9 @@
     </div>
 
     <div class="field">
-      <label>注入故障</label>
+      <label>注入底层故障</label>
       <select id="cfg-fault" class="sel full">
-        <option value="0">无</option>
+        <option value="0">正常流转 (无故障)</option>
         <option value="1">权限拒绝 (EACCES)</option>
         <option value="2">非法地址 (EFAULT)</option>
         <option value="3">硬件超时 (EIO)</option>
@@ -122,112 +167,80 @@
     </div>
   </aside>
 
-  <!-- 中间：5 层拓扑 + SVG 连线 — 面板锁定 400px 宽，left:200px 为绝对中心 -->
   <main class="panel-topology">
-    <svg class="topo-svg" viewBox="0 0 400 750"
-         style="position:absolute; top:0; left:0; width:400px; height:750px;">
-      <defs>
-        <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
-        </marker>
-        <marker id="arrow-down-active" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill="#2563eb"/>
-        </marker>
-        <filter id="glow-active">
-          <feGaussianBlur stdDeviation="3" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
+    <div class="topo-anchor">
+      
+      <svg class="topo-svg" viewBox="0 0 400 700" style="position:absolute; inset:0; width:100%; height:100%;">
+        <defs>
+          <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/></marker>
+          <marker id="arrow-down-active" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563eb"/></marker>
+          <filter id="glow-active"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
 
-      <line x1="200" y1="80" x2="200" y2="150" class="connector" id="conn-u-v"/>
-      <line x1="200" y1="265" x2="200" y2="320" class="connector" id="conn-v-d"/>
-      <line x1="140" y1="400" x2="80" y2="480" class="connector" id="conn-d-h"/>
-      <line x1="260" y1="480" x2="320" y2="400" class="connector" id="conn-h-i"/>
-      <path d="M340,560 C390,560 390,365 340,365" class="connector loopback" id="conn-i-d" fill="none"/>
+        <line x1="200" y1="55" x2="200" y2="120" class="connector" id="conn-u-v"/>
+        <line x1="200" y1="240" x2="200" y2="300" class="connector" id="conn-v-d"/>
+        <line x1="140" y1="380" x2="80" y2="455" class="connector" id="conn-d-h"/>
+        <line x1="260" y1="455" x2="320" y2="380" class="connector" id="conn-h-i"/>
+        <path d="M340,535 C390,535 390,345 340,345" class="connector loopback" id="conn-i-d" fill="none"/>
 
-      <foreignObject x="130" y="165" width="140" height="24">
-        <div class="conn-label" id="irp-label">IRP ↓</div>
-      </foreignObject>
-      <foreignObject x="310" y="495" width="90" height="24">
-        <div class="conn-label" id="irq-label">IRQ ↑</div>
-      </foreignObject>
-    </svg>
+        <foreignObject x="130" y="135" width="140" height="24"><div class="conn-label" id="irp-label">IRP ↓</div></foreignObject>
+        <foreignObject x="310" y="470" width="90" height="24"><div class="conn-label" id="irq-label">IRQ ↑</div></foreignObject>
+      </svg>
 
-    <!-- 用户层 -->
-    <div class="layer-card" id="layer-USER"
-         style="position:absolute; top:24px; left:200px; transform:translateX(-50%); width:240px; box-sizing:border-box;">
-      <span class="layer-tag">L0</span>
-      <span class="layer-name">用户空间</span>
-      <span class="layer-sub">sys_read(fd, buf, len)</span>
-    </div>
-
-    <!-- 设备无关层 VFS -->
-    <div class="layer-card" id="layer-VFS"
-         style="position:absolute; top:150px; left:200px; transform:translateX(-50%); width:280px; box-sizing:border-box;">
-      <span class="layer-tag">L1</span>
-      <span class="layer-name">设备无关层 (VFS)</span>
-      <span class="layer-sub" id="vfs-desc">等待系统调用...</span>
-      <div class="buffers-row" id="vfs-buffers" style="display:flex; gap:10px; margin-top:10px; width:100%;">
-        <div class="kbuf" id="kbuf1" style="flex:1; overflow:hidden;"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
-        <div class="kbuf" id="kbuf2" style="flex:1; overflow:hidden;"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
+      <div class="layer-card" id="layer-USER" style="position:absolute; top:0px; left:50%; transform:translateX(-50%); width:240px; box-sizing:border-box; margin:0;">
+        <span class="layer-tag">L0</span><span class="layer-name">用户空间</span><span class="layer-sub">sys_read(fd, buf, len)</span>
       </div>
-    </div>
 
-    <!-- 设备驱动层 -->
-    <div class="layer-card" id="layer-DRV"
-         style="position:absolute; top:320px; left:200px; transform:translateX(-50%); width:240px; box-sizing:border-box;">
-      <span class="layer-tag">L2</span>
-      <span class="layer-name">设备驱动层</span>
-      <span class="layer-sub" id="drv-desc">等待 IRP...</span>
-      <div class="pbar-wrap"><div class="pbar-fill" id="pbar"></div></div>
-      <span class="chunk-stat" id="chunk-stat">0 / 1</span>
-    </div>
-
-    <!-- 硬件层 + 中断层 -->
-    <div class="hw-int-row"
-         style="position:absolute; top:490px; left:200px; transform:translateX(-50%); width:360px; display:flex; justify-content:space-between;">
-      <div class="layer-card hw-card" id="layer-HW" style="width:165px; box-sizing:border-box; margin:0;">
-        <span class="layer-tag">L4</span>
-        <span class="layer-name">硬件层 (磁盘)</span>
-        <span class="layer-sub">磁盘控制器</span>
-        <div class="regs">
-          <code id="hw-cmd">CMD: NO_OP</code>
-          <code id="hw-status">STS: READY</code>
+      <div class="layer-card" id="layer-VFS" style="position:absolute; top:130px; left:50%; transform:translateX(-50%); width:280px; box-sizing:border-box; margin:0;">
+        <span class="layer-tag">L1</span><span class="layer-name">设备无关层 (VFS)</span><span class="layer-sub" id="vfs-desc">等待系统调用...</span>
+        <div class="buffers-row" id="vfs-buffers" style="display:flex; gap:10px; margin-top:12px; width:100%;">
+          <div class="kbuf" id="kbuf1" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
+          <div class="kbuf" id="kbuf2" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
         </div>
       </div>
-      <div class="layer-card int-card" id="layer-INT" style="width:165px; box-sizing:border-box; margin:0;">
-        <span class="layer-tag">L3</span>
-        <span class="layer-name">中断处理层</span>
-        <span class="layer-sub">ISR 中断服务</span>
-        <div class="regs">
-          <code id="int-state">等待 IRQ...</code>
+
+      <div class="layer-card" id="layer-DRV" style="position:absolute; top:310px; left:50%; transform:translateX(-50%); width:240px; box-sizing:border-box; margin:0;">
+        <span class="layer-tag">L2</span><span class="layer-name">设备驱动层</span><span class="layer-sub" id="drv-desc">等待 IRP...</span>
+        <div class="pbar-wrap" style="margin-top:12px;"><div class="pbar-fill" id="pbar"></div></div>
+        <span class="chunk-stat" id="chunk-stat">0 / 1</span>
+      </div>
+
+      <div class="hw-int-row" style="position:absolute; top:465px; left:50%; transform:translateX(-50%); width:360px; display:flex; justify-content:space-between;">
+        <div class="layer-card hw-card" id="layer-HW" style="width:165px; box-sizing:border-box; margin:0; transform:none; left:auto;">
+          <span class="layer-tag">L4</span><span class="layer-name">硬件层 (磁盘)</span><span class="layer-sub">磁盘控制器</span>
+          <div class="regs" style="margin-top:12px;"><code id="hw-cmd">CMD: NO_OP</code><code id="hw-status">STS: READY</code></div>
+        </div>
+        <div class="layer-card int-card" id="layer-INT" style="width:165px; box-sizing:border-box; margin:0; transform:none; left:auto;">
+          <span class="layer-tag">L3</span><span class="layer-name">中断处理层</span><span class="layer-sub">ISR 中断服务</span>
+          <div class="regs" style="margin-top:12px;"><code id="int-state">等待 IRQ...</code></div>
         </div>
       </div>
-    </div>
 
-    <canvas id="particle-canvas"
-            style="position:absolute; top:0; left:0; width:400px; height:750px; pointer-events:none; z-index:5;"></canvas>
+      <canvas id="particle-canvas" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5;"></canvas>
+    </div>
   </main>
 
-  <!-- 右侧：信息面板 -->
   <aside class="panel-info">
     <div class="info-card" id="proc-card">
-      <h3>进程状态</h3>
+      <h3 style="margin-bottom: 10px;">进程状态</h3>
       <code>PID: <span id="proc-pid">8888</span></code>
       <code>状态: <span id="proc-state" class="badge badge-running">运行中</span></code>
-      <code id="proc-wait"></code>
+      <code id="proc-wait" style="margin-top: 4px; color: var(--amber);"></code>
     </div>
+    
     <div class="info-card">
-      <h3>用户缓冲区</h3>
-      <div class="ubuf-scroll" id="ubuf-display"></div>
-      <code>长度: <span id="ubuf-len">0</span> 字节</code>
+      <h3 style="margin-bottom: 10px;">用户缓冲区 (User Space)</h3>
+      <div class="ubuf-scroll" id="ubuf-display" style="min-height: 80px;"></div>
+      <code>已接收长度: <span id="ubuf-len">0</span> 字节</code>
     </div>
+    
     <div class="info-card" id="err-card">
-      <h3>差错控制台</h3>
+      <h3 style="margin-bottom: 10px;">内核差错控制台</h3>
       <code id="err-msg">等待指令...</code>
     </div>
-    <div class="info-card">
-      <h3>步骤日志</h3>
+    
+    <div class="info-card log-card">
+      <h3 style="margin-bottom: 10px;">系统调用日志</h3>
       <div class="log-scroll" id="step-log"></div>
     </div>
   </aside>

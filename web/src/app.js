@@ -1,6 +1,6 @@
 // ============================================================
 //  OS I/O Simulator — gRPC-Web Client + Diff-Driven Render
-//  Light theme · Real bidirectional stream · 50ms Auto-Play
+//  Dark theme · Kernel Debug Console · 50ms Auto-Play
 // ============================================================
 
 // ---- State ----
@@ -308,7 +308,7 @@ function particleLoop(sx, sy, mx, my, ex, ey) {
         const alpha = p.t < 0.15 ? p.t / 0.15 : p.t > 0.85 ? (1 - p.t) / 0.15 : 1;
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(5,150,105,${alpha * 0.6})`;
+        ctx.fillStyle = `rgba(0,230,118,${alpha * 0.6})`;
         ctx.fill();
     });
     rafId = requestAnimationFrame(() => particleLoop(sx, sy, mx, my, ex, ey));
