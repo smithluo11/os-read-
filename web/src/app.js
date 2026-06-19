@@ -30,32 +30,55 @@ const stepLog    = $('step-log');
 // ---- Connect ----
 function connect() {
     const host = cfgHost.value.trim();
-    if (!host) return;
+    if (!host) {
+        log('错误: 未填写后端地址');
+        return;
+    }
+    log(`尝试连接: ${host}`);
     try {
+        if (streamHandle) {
+            try { streamHandle.close(); } catch(e) {}
+            streamHandle = null;
+        }
         streamHandle = window.IOSim.connect(host);
+        streamHandle.onOpen(function () {
+            connStatus.textContent = '● Connected';
+            connStatus.className = 'conn-status connected';
+            log('WebSocket 握手完成！可以发送指令');
+        });
         streamHandle.onSnapshot(onSnapshot);
-        streamHandle.onError((e) => {
-            log(`gRPC error: ${e.message || e}`);
+        streamHandle.onError(function (e) {
+            var msg = e.message || e;
+            log('gRPC error: ' + msg);
             connStatus.textContent = '● Error';
             connStatus.className = 'conn-status error';
+            btnInit.disabled = true;
+            btnStep.disabled = true;
         });
-        streamHandle.onEnd(() => {
+        streamHandle.onEnd(function () {
             log('Stream ended');
             connStatus.textContent = '● Disconnected';
             connStatus.className = 'conn-status disconnected';
+            btnInit.disabled = true;
+            btnStep.disabled = true;
         });
-        connStatus.textContent = '● Connected';
-        connStatus.className = 'conn-status connected';
         btnInit.disabled = false;
         btnStep.disabled = false;
+        log('WebSocket 已创建，等待握手...');
     } catch (e) {
-        log(`Connection failed: ${e.message}`);
+        log('Connection failed: ' + e.message);
         connStatus.textContent = '● Disconnected';
         connStatus.className = 'conn-status disconnected';
     }
 }
 
 cfgHost.addEventListener('change', connect);
+$('btn-connect').addEventListener('click', function () {
+    log('正在连接后端...');
+    connStatus.textContent = '● 连接中...';
+    connStatus.className = 'conn-status disconnected';
+    connect();
+});
 
 function send(cmd) {
     if (!streamHandle) { log('Not connected. Click INIT first.'); return; }

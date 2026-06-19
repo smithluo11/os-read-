@@ -204,8 +204,8 @@ body {
 .layer-card.int-card.active { transform: scale(1.04); }
 
 .hw-int-row {
-    position: absolute; top: 440px; left: 40px; right: 40px; height: 160px;
-    display: flex; justify-content: space-between; align-items: flex-start;
+    position: absolute; top: 480px; left: 0; right: 0; height: auto;
+    display: flex; justify-content: center; align-items: flex-start; gap: 20px;
 }
 
 /* Buffer boxes inside VFS */

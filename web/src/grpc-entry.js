@@ -4,14 +4,17 @@ const pb = require('./generated/io_simulation_pb.js');
 
 // ---- gRPC WebSocket frame helpers ----
 
-/** Encode a protobuf message into a gRPC-Web frame (flag=0, 4-byte BE length, data) */
+/** Encode a protobuf message into a gRPC-Web WebSocket frame.
+ *  Improbable grpc-websockets protocol requires a 1-byte control prefix
+ *  before the standard gRPC-Web frame: [control=0] [flag] [4-byte BE len] [data] */
 function frameMessage(msg) {
     const data = msg.serializeBinary();
-    const buf = new ArrayBuffer(5 + data.byteLength);
+    const buf = new ArrayBuffer(6 + data.byteLength);
     const view = new DataView(buf);
-    view.setUint8(0, 0);           // frame flag: data
-    view.setUint32(1, data.byteLength, false); // big-endian length
-    new Uint8Array(buf, 5).set(data);
+    view.setUint8(0, 0);           // WebSocket transport control byte (0 = data)
+    view.setUint8(1, 0);           // gRPC frame flag: 0 = data
+    view.setUint32(2, data.byteLength, false); // big-endian length
+    new Uint8Array(buf, 6).set(data);
     return new Uint8Array(buf);
 }
 
@@ -53,6 +56,7 @@ window.IOSim = {
         let onMsgCb = null;
         let onErrCb = null;
         let onEndCb = null;
+        let onOpenCb = null;
         let open = false;
         let msgQueue = [];
         let parserBuf = new Uint8Array(0);
@@ -68,19 +72,32 @@ window.IOSim = {
             // Flush queued messages
             msgQueue.forEach(function (m) { ws.send(frameMessage(m)); });
             msgQueue = [];
+            if (onOpenCb) onOpenCb();
         };
 
         ws.onmessage = function (event) {
             // Accumulate data in parserBuf
-            const chunk = new Uint8Array(event.data);
-            const combined = new Uint8Array(parserBuf.length + chunk.length);
+            var raw = event.data;
+            var chunk;
+            if (typeof raw === 'string') {
+                // Text frame (e.g. gRPC response headers) — ignore for now
+                return;
+            }
+            if (raw instanceof ArrayBuffer) {
+                chunk = new Uint8Array(raw);
+            } else if (raw instanceof Uint8Array) {
+                chunk = raw;
+            } else {
+                return;
+            }
+            var combined = new Uint8Array(parserBuf.length + chunk.length);
             combined.set(parserBuf, 0);
             combined.set(chunk, parserBuf.length);
             parserBuf = combined;
 
             // Parse frames
             while (true) {
-                const frame = parseFrame(parserBuf);
+                var frame = parseFrame(parserBuf);
                 if (!frame) break;
                 parserBuf = parserBuf.slice(frame.consumed);
                 if (frame.isTrailer) {
@@ -88,7 +105,7 @@ window.IOSim = {
                     continue;
                 }
                 try {
-                    const msg = pb.SystemSnapshot.deserializeBinary(frame.data);
+                    var msg = pb.SystemSnapshot.deserializeBinary(frame.data);
                     if (onMsgCb) onMsgCb(msg);
                 } catch (e) {
                     if (onErrCb) onErrCb({ message: 'Deserialize error: ' + e.message });
@@ -119,6 +136,7 @@ window.IOSim = {
                 }
             },
 
+            onOpen(fn) { onOpenCb = fn; },
             onSnapshot(fn) { onMsgCb = fn; },
             onError(fn) { onErrCb = fn; },
             onEnd(fn) { onEndCb = fn; },

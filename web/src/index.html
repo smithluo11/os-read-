@@ -23,7 +23,7 @@
     <button id="btn-autoplay" class="btn btn-warn hidden">⚡ 自动连点</button>
   </div>
   <div class="topbar-right">
-    <span id="conn-status" class="conn-badge disconnected">● 未连接</span>
+    <span id="conn-status" class="conn-status disconnected">● 未连接</span>
   </div>
 </header>
 
@@ -97,7 +97,7 @@
 
   <!-- 中间：5 层拓扑 + SVG 连线 -->
   <main class="panel-topology">
-    <svg class="topo-svg" viewBox="0 0 400 680" preserveAspectRatio="xMidYMid meet">
+    <svg class="topo-svg" viewBox="0 0 400 750" preserveAspectRatio="xMidYMid meet">
       <defs>
         <marker id="arrow-down" markerWidth="8" markerHeight="8" refX="4" refY="8" orient="auto">
           <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
@@ -112,20 +112,20 @@
       </defs>
 
       <!-- 用户层 → VFS -->
-      <line x1="200" y1="65" x2="200" y2="135" class="connector" id="conn-u-v"/>
+      <line x1="200" y1="80" x2="200" y2="145" class="connector" id="conn-u-v"/>
       <!-- VFS → 驱动层 -->
-      <line x1="200" y1="210" x2="200" y2="275" class="connector" id="conn-v-d"/>
+      <line x1="200" y1="260" x2="200" y2="315" class="connector" id="conn-v-d"/>
       <!-- 驱动层 → 硬件层 -->
-      <line x1="140" y1="335" x2="70" y2="400" class="connector" id="conn-d-h"/>
+      <line x1="140" y1="400" x2="80" y2="470" class="connector" id="conn-d-h"/>
       <!-- 硬件层 → 中断层 -->
-      <line x1="280" y1="430" x2="320" y2="400" class="connector" id="conn-h-i"/>
+      <line x1="260" y1="470" x2="320" y2="400" class="connector" id="conn-h-i"/>
       <!-- 乒乓回溯虚线 -->
-      <path d="M340,520 C380,520 380,320 340,320" class="connector loopback" id="conn-i-d" fill="none"/>
+      <path d="M340,560 C390,560 390,360 340,360" class="connector loopback" id="conn-i-d" fill="none"/>
 
-      <foreignObject x="130" y="140" width="140" height="24">
+      <foreignObject x="130" y="160" width="140" height="24">
         <div class="conn-label" id="irp-label">IRP ↓</div>
       </foreignObject>
-      <foreignObject x="310" y="450" width="90" height="24">
+      <foreignObject x="310" y="490" width="90" height="24">
         <div class="conn-label" id="irq-label">IRQ ↑</div>
       </foreignObject>
     </svg>
@@ -137,7 +137,7 @@
       <span class="layer-sub">sys_read(fd, buf, len)</span>
     </div>
     <!-- 设备无关层 VFS -->
-    <div class="layer-card" id="layer-VFS" style="top:140px;left:50%;">
+    <div class="layer-card" id="layer-VFS" style="top:150px;left:50%;min-height:90px;height:auto;">
       <span class="layer-tag">L1</span>
       <span class="layer-name">设备无关层 (VFS)</span>
       <span class="layer-sub" id="vfs-desc">等待系统调用...</span>
@@ -147,7 +147,7 @@
       </div>
     </div>
     <!-- 设备驱动层 -->
-    <div class="layer-card" id="layer-DRV" style="top:290px;left:50%;">
+    <div class="layer-card" id="layer-DRV" style="top:320px;left:50%;">
       <span class="layer-tag">L2</span>
       <span class="layer-name">设备驱动层</span>
       <span class="layer-sub" id="drv-desc">等待 IRP...</span>
