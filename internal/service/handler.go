@@ -5,7 +5,7 @@ import (
 	"io"
 	"log"
 
-	"io-simulator/api/pb" 
+	"io-simulator/api/pb"
 	"io-simulator/internal/engine"
 )
 
@@ -67,7 +67,10 @@ func (s *IOSimulationService) StreamSimulation(stream pb.IOSimulationEngine_Stre
 			if err != nil {
 				log.Printf("状态机执行完毕或出错: %v", err)
 				// 即使出错也把最后的状态推过去
-				stream.Send(simEngine.Snapshot)
+				if sendErr := stream.Send(simEngine.Snapshot); sendErr != nil {
+					log.Printf("发送最终快照失败: %v", sendErr)
+					return sendErr
+				}
 				continue
 			}
 

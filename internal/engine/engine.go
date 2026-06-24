@@ -150,10 +150,10 @@ func (e *SimulationEngine) executeUserLayer() {
 		for _, entry := range e.FdTable {
 			if entry.Fd == e.CurrentFd {
 				found = true
-				if entry.Flags != 0 {
+				if entry.Flags == 1 { // O_WRONLY -- 只写模式不可读
 					e.Snapshot.StepDescription = fmt.Sprintf(
-						"【fd 表查找 异常】fd=%d 对应文件 %q 未以只读方式打开 (flags=0x%X)，拒绝读取！",
-						e.CurrentFd, entry.FilePath, entry.Flags)
+						"【fd 表查找 异常】fd=%d 对应文件 %q 以只写方式打开 (flags=O_WRONLY)，拒绝读取！",
+						e.CurrentFd, entry.FilePath)
 					e.Snapshot.FinalErrorCode = "EBADF (Bad file descriptor)"
 					e.Snapshot.IsFinished = true
 					return
@@ -177,7 +177,7 @@ func (e *SimulationEngine) executeUserLayer() {
 	case 3:
 		// 子步骤 3: 参数校验 — access_ok() 检查用户缓冲区地址合法性
 		addr := e.Config.UserBufferAddr
-		if e.InjectedFault == pb.FaultType_FAULT_INVALID_ADDRESS || addr > 0x7FFFFFFF {
+		if e.InjectedFault == pb.FaultType_FAULT_INVALID_ADDRESS || addr >= 0xC0000000 {
 			e.Snapshot.StepDescription = fmt.Sprintf(
 				"【access_ok 异常】access_ok(buf=0x%X, len=%d) 失败！用户缓冲区地址 0x%X 超出用户地址空间 (TASK_SIZE=0xC0000000)，"+
 					"可能写入内核空间。向进程发送 SIGSEGV 信号。",
@@ -250,9 +250,14 @@ func (e *SimulationEngine) executeIndependentLayer() {
 			}
 		}
 
+		uid, gid := uint32(0), uint32(0)
+		if e.UserContext != nil {
+			uid = e.UserContext.Uid
+			gid = e.UserContext.Gid
+		}
 		e.Snapshot.StepDescription = fmt.Sprintf(
 			"【ACL 权限校验】4 级管线通过：①路径穿越检测 ②文件存在检查 ③敏感文件检查 ④Unix 权限位 (UID=%d GID=%d) — 允许读取",
-			e.UserContext.Uid, e.UserContext.Gid)
+			uid, gid)
 
 	case 3:
 		// 子步骤 3: 内核缓冲分配
@@ -457,6 +462,8 @@ func (e *SimulationEngine) executeInterruptLayer() {
 			e.CurrentChunk++
 
 			// 乒乓切换
+			oldWriteBuffer := e.ActiveWriteBuffer
+			oldReadBuffer := e.ActiveReadBuffer
 			e.ActiveReadBuffer = e.ActiveWriteBuffer
 			if e.ActiveWriteBuffer == 1 {
 				e.ActiveWriteBuffer = 2
@@ -479,7 +486,7 @@ func (e *SimulationEngine) executeInterruptLayer() {
 					"缓冲区切换: 写入目标 Buf%d → Buf%d, 读取源 Buf%d → Buf%d。"+
 					"已编程下一块 DMA (Chunk %d → Buf%d)。进程再次阻塞等待。",
 				e.CurrentChunk, e.TotalChunks,
-				e.ActiveReadBuffer, e.ActiveWriteBuffer, e.ActiveWriteBuffer, e.ActiveReadBuffer,
+				oldWriteBuffer, e.ActiveWriteBuffer, oldReadBuffer, e.ActiveReadBuffer,
 				e.CurrentChunk+1, e.ActiveWriteBuffer)
 
 			// 回到驱动层，继续下一轮 DMA 周期

@@ -49,7 +49,7 @@ func main() {
 		http.DefaultServeMux.ServeHTTP(res, req)
 	}
 
-	// 5. 启动 HTTP 服务，监听 18083 端口
+	// 6. 启动 HTTP 服务，监听 18083 端口
 	httpServer := &http.Server{
 		Addr:    ":18083",
 		Handler: http.HandlerFunc(handler),
