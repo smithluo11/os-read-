@@ -390,11 +390,11 @@ func (e *SimulationEngine) executeDriverLayer() {
 			e.SubStep = 1 // 保持 sub-step 2 (NextStep +1 = 2)
 			return
 		}
-		// 重试耗尽：设备就绪，正常编程
-		if e.InjectedFault == pb.FaultType_FAULT_EAGAIN && e.RetryCount >= e.RetryMax {
-			e.Snapshot.StepDescription = fmt.Sprintf(
-				"【重试成功】%d 次重试后设备控制器就绪，寄存器编程正常。CMD_REG 写入成功。",
-				e.RetryMax)
+		// 重试耗尽：设备就绪，继续正常编程
+		eagerRetrySucceeded := e.InjectedFault == pb.FaultType_FAULT_EAGAIN && e.RetryCount >= e.RetryMax
+		if eagerRetrySucceeded {
+			e.RetryCount = 0
+			e.Snapshot.MemoryState.RetryCount = 0 // 清除前端重试计数
 		}
 
 		if e.Config.UseDoubleBuffer {
@@ -409,9 +409,15 @@ func (e *SimulationEngine) executeDriverLayer() {
 			e.Snapshot.HardwareState.CmdRegister = "0x01: READ_SECTOR"
 		}
 		e.Snapshot.HardwareState.StatusRegister = "0x02: DEVICE_BUSY"
-		e.Snapshot.StepDescription = fmt.Sprintf(
-			"【寄存器编程】驱动程序通过内存映射 I/O 写入设备寄存器：CMD_REG=%s, STS_REG=DEVICE_BUSY",
-			e.Snapshot.HardwareState.CmdRegister)
+		if eagerRetrySucceeded {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【重试成功 → 寄存器编程】%d 次重试后设备就绪。驱动程序写入：CMD_REG=%s, STS_REG=DEVICE_BUSY",
+				e.RetryMax, e.Snapshot.HardwareState.CmdRegister)
+		} else {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【寄存器编程】驱动程序通过内存映射 I/O 写入设备寄存器：CMD_REG=%s, STS_REG=DEVICE_BUSY",
+				e.Snapshot.HardwareState.CmdRegister)
+		}
 
 	case 3:
 		// 子步骤 3: 进程阻塞，等待 I/O 完成
