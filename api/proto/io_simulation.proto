@@ -60,6 +60,8 @@ message SystemSnapshot {
   HardwareView hardware_state = 5;
   bool is_finished = 6;
   string final_error_code = 7;
+  int32 sub_step = 8;        // 当前层内子步骤序号 (1-based)
+  int32 total_sub_steps = 9; // 当前层的子步骤总数
 }
 
 message ProcessBlock {

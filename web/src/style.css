@@ -432,6 +432,17 @@ select.sel {
     color: var(--ink-muted);
     margin-top: 5px; display: block;
 }
+.layer-steps {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--phosphor); font-weight: 700;
+    background: rgba(230,126,34,0.1);
+    padding: 1px 6px; border-radius: 3px;
+    margin-left: 8px; white-space: nowrap;
+    vertical-align: middle; display: none;
+}
+.layer-card.active .layer-steps {
+    display: inline;
+}
 
 /* HW / INT bottom-row cards: override absolute positioning */
 .layer-card.hw-card,

@@ -3,42 +3,61 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"io-simulator/api/pb" 
+	"io-simulator/api/pb"
 )
 
 const chunkSize = 4096 // 4KB per chunk (模拟磁盘扇区/页大小)
 
+// OpenFileEntry 进程打开文件表 (fd table) 中的条目
+type OpenFileEntry struct {
+	Fd       int32  // 文件描述符 (如 3)
+	FilePath string // 关联的文件路径
+	Flags    int32  // 打开标志: 0=O_RDONLY
+	FilePos  int64  // 当前文件读写偏移量
+	InodePtr string // 指向 inode 的指针标识 (模拟)
+}
+
 // SimulationEngine 掌控全局状态机
 type SimulationEngine struct {
-	CurrentLayer  pb.SystemSnapshot_Layer
-	StepIndex     int
-	Config        *pb.ReadRequestConfig
-	Snapshot      *pb.SystemSnapshot
+	CurrentLayer pb.SystemSnapshot_Layer
+	SubStep      int32 // 当前层内子步骤序号 (1-based), 0 表示刚进入该层
+	StepIndex    int
+	Config       *pb.ReadRequestConfig
+	Snapshot     *pb.SystemSnapshot
 	InjectedFault pb.FaultType
-	UserContext   *pb.UserContext // 当前用户上下文
+	UserContext  *pb.UserContext
+
+	// L0 用户层数据结构
+	FdTable   []*OpenFileEntry // 进程打开文件表
+	CurrentFd int32            // 当前 read() 操作的文件描述符
 
 	// 双缓冲 / 乒乓缓冲状态
-	ActiveWriteBuffer int32 // 硬件 DMA 目标缓冲区 (1 或 2)
-	ActiveReadBuffer  int32 // CPU 拷贝源缓冲区 (1 或 2)
-	CurrentChunk      int32 // 当前数据块序号 (0-based)
-	TotalChunks       int32 // 总数据块数
+	ActiveWriteBuffer int32
+	ActiveReadBuffer  int32
+	CurrentChunk      int32
+	TotalChunks       int32
 }
 
 // NewEngine 初始化一次全新的 read 模拟
 func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *SimulationEngine {
-	// 计算总数据块数：双缓冲时按 chunkSize 切分，单缓冲时 totalChunks=1
 	totalChunks := int32(1)
 	if config.UseDoubleBuffer && config.BytesToRead > 0 {
 		totalChunks = int32((config.BytesToRead + chunkSize - 1) / chunkSize)
 	}
 
-	// 默认给一个模拟的 PID 和初始状态
 	return &SimulationEngine{
 		CurrentLayer:  pb.SystemSnapshot_LAYER_USER,
+		SubStep:       0, // 首次 NextStep 会推进到 1
 		StepIndex:     0,
 		Config:        config,
 		InjectedFault: pb.FaultType_FAULT_NONE,
 		UserContext:   userCtx,
+
+		// 初始化进程打开文件表 (模拟 fd=3 对应目标文件)
+		FdTable: []*OpenFileEntry{
+			{Fd: 3, FilePath: config.FilePath, Flags: 0, FilePos: 0, InodePtr: "inode:0xBEEF"},
+		},
+		CurrentFd: 3,
 
 		ActiveWriteBuffer: 1,
 		ActiveReadBuffer:  1,
@@ -48,6 +67,8 @@ func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *Simulatio
 		Snapshot: &pb.SystemSnapshot{
 			CurrentActiveLayer: pb.SystemSnapshot_LAYER_USER,
 			StepDescription:    "等待用户发起 read() 系统调用...",
+			SubStep:            0,
+			TotalSubSteps:      4,
 			ProcessState: &pb.ProcessBlock{
 				Pid:   8888,
 				State: pb.ProcessBlock_STATE_RUNNING,
@@ -73,11 +94,15 @@ func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *Simulatio
 	}
 }
 
-// NextStep 核心驱动：前端每点一次“下一步”，这个函数执行一次
+// NextStep 核心驱动：前端每点一次"下一步"，推进一个子步骤
 func (e *SimulationEngine) NextStep() (*pb.SystemSnapshot, error) {
 	if e.Snapshot.IsFinished {
 		return e.Snapshot, errors.New("simulation already finished")
 	}
+
+	// 推进子步骤
+	e.SubStep++
+	e.Snapshot.SubStep = e.SubStep
 
 	switch e.CurrentLayer {
 	case pb.SystemSnapshot_LAYER_USER:
@@ -96,225 +121,402 @@ func (e *SimulationEngine) NextStep() (*pb.SystemSnapshot, error) {
 	return e.Snapshot, nil
 }
 
+// nextLayer 切换到下一层，重置子步骤计数器
+func (e *SimulationEngine) nextLayer(next pb.SystemSnapshot_Layer) {
+	e.CurrentLayer = next
+	e.SubStep = 0
+}
+
 // =================================================================
-//  下面是各层执行逻辑 —— 以后分给队友改的就是这里面
+//  L0 用户层 I/O 软件 (4 个子步骤)
 // =================================================================
 
 func (e *SimulationEngine) executeUserLayer() {
 	e.Snapshot.CurrentActiveLayer = pb.SystemSnapshot_LAYER_USER
-	e.Snapshot.StepDescription = fmt.Sprintf("【用户层】进程 %d 调用 read() 库函数。尝试读取文件：%s，长度：%d 字节。开始陷入内核...", e.Snapshot.ProcessState.Pid, e.Config.FilePath, e.Config.BytesToRead)
+	e.Snapshot.TotalSubSteps = 4
 
-	// 状态迁移：下一步去内核设备无关层
-	e.CurrentLayer = pb.SystemSnapshot_LAYER_INDEPENDENT
+	switch e.SubStep {
+	case 1:
+		// 子步骤 1: 标准 I/O 库函数调用 — fread() → libc → syscall wrapper
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【库函数调用】进程 %d 调用 fread(buf=0x%X, size=1, nmemb=%d, fp=0x%s) → "+
+				"C 库 (libc) 从 FILE* 结构体中提取 fd=%d, 调用系统调用封装函数 read(fd=%d, buf, %d)",
+			e.Snapshot.ProcessState.Pid, e.Config.UserBufferAddr,
+			e.Config.BytesToRead, "7FFF1000", e.CurrentFd, e.CurrentFd, e.Config.BytesToRead)
+
+	case 2:
+		// 子步骤 2: 文件描述符表查找 — fd → file* → inode
+		found := false
+		for _, entry := range e.FdTable {
+			if entry.Fd == e.CurrentFd {
+				found = true
+				if entry.Flags != 0 {
+					e.Snapshot.StepDescription = fmt.Sprintf(
+						"【fd 表查找 异常】fd=%d 对应文件 %q 未以只读方式打开 (flags=0x%X)，拒绝读取！",
+						e.CurrentFd, entry.FilePath, entry.Flags)
+					e.Snapshot.FinalErrorCode = "EBADF (Bad file descriptor)"
+					e.Snapshot.IsFinished = true
+					return
+				}
+				e.Snapshot.StepDescription = fmt.Sprintf(
+					"【fd 表查找】遍历进程打开文件表 fd_table[%d] → OpenFileEntry{path=%q, flags=O_RDONLY, pos=%d, %s} → "+
+						"获取 file* → inode 指针。文件偏移量当前位于 %d 字节处。",
+					e.CurrentFd, entry.FilePath, entry.FilePos, entry.InodePtr, entry.FilePos)
+				break
+			}
+		}
+		if !found {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【fd 表查找 异常】fd=%d 不在进程打开文件表中 — 文件描述符无效！进程 %d 未打开该文件。",
+				e.CurrentFd, e.Snapshot.ProcessState.Pid)
+			e.Snapshot.FinalErrorCode = "EBADF (Bad file descriptor)"
+			e.Snapshot.IsFinished = true
+			return
+		}
+
+	case 3:
+		// 子步骤 3: 参数校验 — access_ok() 检查用户缓冲区地址合法性
+		addr := e.Config.UserBufferAddr
+		if e.InjectedFault == pb.FaultType_FAULT_INVALID_ADDRESS || addr > 0x7FFFFFFF {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【access_ok 异常】access_ok(buf=0x%X, len=%d) 失败！用户缓冲区地址 0x%X 超出用户地址空间 (TASK_SIZE=0xC0000000)，"+
+					"可能写入内核空间。向进程发送 SIGSEGV 信号。",
+				addr, e.Config.BytesToRead, addr)
+			e.Snapshot.FinalErrorCode = "EFAULT (Bad address)"
+			e.Snapshot.IsFinished = true
+			return
+		}
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【access_ok】验证用户缓冲区地址合法性: buf=0x%X 在 [0, TASK_SIZE) 范围内, len=%d。校验通过。",
+			addr, e.Config.BytesToRead)
+
+	case 4:
+		// 子步骤 4: 陷入内核 — 触发系统调用，CPU 模式切换
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【陷入内核】系统调用参数装入寄存器: eax=NR_read(3), ebx=fd=%d, ecx=buf=0x%X, edx=len=%d。→ "+
+				"执行 int 0x80 (x86) / sysenter 指令。CPU 硬件自动: ①压栈 SS/ESP/EFLAGS/CS/EIP ②从 MSR 加载内核 SS/ESP/CS/EIP "+
+				"③切换到 Ring 0 (内核态)。跳转至内核 sys_read() 入口。",
+			e.CurrentFd, e.Config.UserBufferAddr, e.Config.BytesToRead)
+		e.nextLayer(pb.SystemSnapshot_LAYER_INDEPENDENT)
+	}
 }
+
+// =================================================================
+//  L1 设备无关软件 VFS (4 个子步骤)
+// =================================================================
 
 func (e *SimulationEngine) executeIndependentLayer() {
 	e.Snapshot.CurrentActiveLayer = pb.SystemSnapshot_LAYER_INDEPENDENT
-	e.Snapshot.StepDescription = "【设备无关层】内核捕获系统调用。正在进行安全校验..."
+	e.Snapshot.TotalSubSteps = 4
 
-	// 异常注入测试 1：模拟权限不足
-	if e.InjectedFault == pb.FaultType_FAULT_PERMISSION_DENIED {
-		e.Snapshot.StepDescription = "【设备无关层 异常】权限校验失败！当前用户无权读取该模拟敏感文件。"
-		e.Snapshot.FinalErrorCode = "EACCES (Permission denied)"
-		e.Snapshot.IsFinished = true
-		return
-	}
+	switch e.SubStep {
+	case 1:
+		// 子步骤 1: 路径解析 — path → dentry/inode
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【路径解析】VFS 将路径 %q 解析为 dentry → inode，遍历目录项缓存 (dcache)",
+			e.Config.FilePath)
 
-	// 异常注入测试 2：模拟非法地址
-	if e.Config.UserBufferAddr > 0x7FFFFFFF {
-		e.Snapshot.StepDescription = "【设备无关层 异常】段错误！用户传入的缓冲区地址 0x" + fmt.Sprintf("%X", e.Config.UserBufferAddr) + " 越界。"
-		e.Snapshot.FinalErrorCode = "EFAULT (Bad address)"
-		e.Snapshot.IsFinished = true
-		return
-	}
+	case 2:
+		// 子步骤 2: ACL 权限校验管线 (路径穿越→存在→敏感文件→权限位)
+		if e.InjectedFault == pb.FaultType_FAULT_PERMISSION_DENIED {
+			e.Snapshot.StepDescription = "【ACL 权限校验 异常】权限不足！当前用户无权读取该文件。"
+			e.Snapshot.FinalErrorCode = "EACCES (Permission denied)"
+			e.Snapshot.IsFinished = true
+			return
+		}
+		if e.InjectedFault == pb.FaultType_FAULT_PATH_TRAVERSAL {
+			e.Snapshot.StepDescription = "【ACL 权限校验 异常】路径穿越攻击！检测到 '../' 模式，试图逃逸用户主目录。"
+			e.Snapshot.FinalErrorCode = "EPERM (Path traversal detected)"
+			e.Snapshot.IsFinished = true
+			return
+		}
+		if e.InjectedFault == pb.FaultType_FAULT_FILE_NOT_FOUND {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【ACL 权限校验 异常】文件 %q 在文件系统中不存在。", e.Config.FilePath)
+			e.Snapshot.FinalErrorCode = "ENOENT (No such file or directory)"
+			e.Snapshot.IsFinished = true
+			return
+		}
 
-	// 异常注入测试 3：模拟路径穿越攻击
-	if e.InjectedFault == pb.FaultType_FAULT_PATH_TRAVERSAL {
-		e.Snapshot.StepDescription = "【设备无关层 异常】路径遍历攻击！检测到 '../' 模式，试图访问用户主目录之外的文件。"
-		e.Snapshot.FinalErrorCode = "EFAULT (Path traversal detected)"
-		e.Snapshot.IsFinished = true
-		return
-	}
-
-	// 异常注入测试 4：模拟文件不存在
-	if e.InjectedFault == pb.FaultType_FAULT_FILE_NOT_FOUND {
-		e.Snapshot.StepDescription = "【设备无关层 异常】文件未找到！路径：'" + e.Config.FilePath + "' 在文件系统中不存在。"
-		e.Snapshot.FinalErrorCode = "ENOENT (No such file or directory)"
-		e.Snapshot.IsFinished = true
-		return
-	}
-
-	// 真实文件访问校验管线：路径穿越 → 存在检查 → 敏感文件 → 权限位
-	if e.UserContext != nil {
-		if valErr := ValidateFileAccess(e.UserContext, e.Config.FilePath); valErr != nil {
-			if vErr, ok := valErr.(*ValidationError); ok {
-				e.Snapshot.StepDescription = "【设备无关层 异常】" + vErr.Description
-				e.Snapshot.FinalErrorCode = vErr.Code
-				e.Snapshot.IsFinished = true
-				return
+		// 真实文件访问校验管线
+		if e.UserContext != nil {
+			if valErr := ValidateFileAccess(e.UserContext, e.Config.FilePath); valErr != nil {
+				if vErr, ok := valErr.(*ValidationError); ok {
+					e.Snapshot.StepDescription = "【ACL 权限校验 异常】" + vErr.Description
+					e.Snapshot.FinalErrorCode = vErr.Code
+					e.Snapshot.IsFinished = true
+					return
+				}
 			}
 		}
-	}
 
-	// 正常流：分配缓冲区并构造 IRP
-	bufType := "单缓冲区"
-	if e.Config.UseDoubleBuffer {
-		bufType = fmt.Sprintf("双缓冲区 (%d 个数据块, 每块 %d 字节)", e.TotalChunks, chunkSize)
-	}
-	e.Snapshot.MemoryState.CurrentIrpInfo = fmt.Sprintf("IRP_READ -> Dev:Disk0, Len:%d", e.Config.BytesToRead)
-	e.Snapshot.StepDescription = fmt.Sprintf("【设备无关层】校验通过。系统分配了【%s】。已构造 I/O 请求包 (IRP) 下发给驱动程序。", bufType)
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【ACL 权限校验】4 级管线通过：①路径穿越检测 ②文件存在检查 ③敏感文件检查 ④Unix 权限位 (UID=%d GID=%d) — 允许读取",
+			e.UserContext.Uid, e.UserContext.Gid)
 
-	e.CurrentLayer = pb.SystemSnapshot_LAYER_DRIVER
+	case 3:
+		// 子步骤 3: 内核缓冲分配
+		bufType := "单缓冲区 (Simple Buffer)"
+		if e.Config.UseDoubleBuffer {
+			bufType = fmt.Sprintf("双缓冲区 / 乒乓缓冲 (Ping-Pong A/B, %d 块 × %d 字节)", e.TotalChunks, chunkSize)
+		}
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【缓冲分配】VFS 根据配置在内核空间分配 %s，准备接收磁盘数据", bufType)
+
+	case 4:
+		// 子步骤 4: IRP 构造与下发
+		e.Snapshot.MemoryState.CurrentIrpInfo = fmt.Sprintf(
+			"IRP_READ → Dev:Disk0, Len:%d, Buf:0x%X", e.Config.BytesToRead, e.Config.UserBufferAddr)
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【IRP 构造】构造 I/O 请求包 (IRP): %s。IRP 沿设备栈向下提交至驱动程序。",
+			e.Snapshot.MemoryState.CurrentIrpInfo)
+		e.nextLayer(pb.SystemSnapshot_LAYER_DRIVER)
+	}
 }
+
+// =================================================================
+//  L2 设备驱动程序 (3 个子步骤)
+// =================================================================
 
 func (e *SimulationEngine) executeDriverLayer() {
 	e.Snapshot.CurrentActiveLayer = pb.SystemSnapshot_LAYER_DRIVER
+	e.Snapshot.TotalSubSteps = 3
 
-	// 双缓冲模式：显示当前数据块和 DMA 目标缓冲区
-	if e.Config.UseDoubleBuffer {
-		remainingBytes := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
-		if remainingBytes > chunkSize {
-			remainingBytes = chunkSize
+	switch e.SubStep {
+	case 1:
+		// 子步骤 1: IRP 解析与 I/O 策略选择
+		if e.Config.UseDoubleBuffer {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【IRP 解析】驱动程序提取 IRP 参数：操作=READ, 设备=Disk0, 数据块 %d/%d, 长度=%d",
+				e.CurrentChunk+1, e.TotalChunks, chunkSize)
+		} else {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【IRP 解析】驱动程序提取 IRP 参数：操作=READ, 设备=Disk0, 长度=%d 字节",
+				e.Config.BytesToRead)
 		}
+
+	case 2:
+		// 子步骤 2: 设备寄存器编程 (Memory-Mapped I/O)
+		if e.Config.UseDoubleBuffer {
+			remainingBytes := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
+			if remainingBytes > chunkSize {
+				remainingBytes = chunkSize
+			}
+			e.Snapshot.HardwareState.CmdRegister = fmt.Sprintf(
+				"0x01: READ_SECTOR (Chunk %d/%d, DMA→Buf%d, %d bytes)",
+				e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer, remainingBytes)
+		} else {
+			e.Snapshot.HardwareState.CmdRegister = "0x01: READ_SECTOR"
+		}
+		e.Snapshot.HardwareState.StatusRegister = "0x02: DEVICE_BUSY"
 		e.Snapshot.StepDescription = fmt.Sprintf(
-			"【设备驱动层】收到 IRP。驱动程序开始将数据块 %d/%d 写入控制寄存器 (DMA → 内核缓冲区 %d, %d 字节)。随后阻塞当前进程...",
-			e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer, remainingBytes)
-		e.Snapshot.HardwareState.CmdRegister = fmt.Sprintf(
-			"0x01: READ_SECTOR (Chunk %d/%d, DMA→Buf%d)",
-			e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer)
-	} else {
-		e.Snapshot.StepDescription = "【设备驱动层】收到 IRP。驱动程序开始解析并将物理请求写入硬件控制寄存器。随后阻塞当前进程..."
-		e.Snapshot.HardwareState.CmdRegister = "0x01: READ_SECTOR"
+			"【寄存器编程】驱动程序通过内存映射 I/O 写入设备寄存器：CMD_REG=%s, STS_REG=DEVICE_BUSY",
+			e.Snapshot.HardwareState.CmdRegister)
+
+	case 3:
+		// 子步骤 3: 进程阻塞，等待 I/O 完成
+		e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_BLOCKED
+		e.Snapshot.ProcessState.WaitReason = "等待磁盘 I/O 完成 (DMA 传输 + 硬件中断)"
+		e.Snapshot.StepDescription = fmt.Sprintf(
+			"【进程阻塞】进程 %d 进入 BLOCKED 状态，CPU 调度器切换到其他就绪进程。"+
+				"当前进程等待硬件中断唤醒。",
+			e.Snapshot.ProcessState.Pid)
+		e.nextLayer(pb.SystemSnapshot_LAYER_HARDWARE)
 	}
-
-	e.Snapshot.HardwareState.StatusRegister = "0x02: DEVICE_BUSY"
-	e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_BLOCKED
-	e.Snapshot.ProcessState.WaitReason = "等待物理硬件 I/O 中断信号"
-
-	e.CurrentLayer = pb.SystemSnapshot_LAYER_HARDWARE
 }
+
+// =================================================================
+//  L4 硬件层 (磁盘控制器) (3 个子步骤)
+// =================================================================
 
 func (e *SimulationEngine) executeHardwareLayer() {
 	e.Snapshot.CurrentActiveLayer = pb.SystemSnapshot_LAYER_HARDWARE
-	e.Snapshot.StepDescription = "【模拟硬件】磁盘磁头开始寻道并读取扇区数据..."
+	e.Snapshot.TotalSubSteps = 3
 
-	// 异常注入：硬件超时故障
-	if e.InjectedFault == pb.FaultType_FAULT_HARDWARE_TIMEOUT {
-		e.Snapshot.StepDescription = "【模拟硬件 异常】硬件响应超时！磁道损坏或设备掉线。"
-		e.Snapshot.HardwareState.StatusRegister = "0x03: DEVICE_ERROR"
-		e.Snapshot.FinalErrorCode = "EIO (Input/output error)"
-		e.Snapshot.IsFinished = true
-		e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_READY
-		return
-	}
-
-	// 生成数据：双缓冲模式按块序号动态生成，单缓冲模式使用统一数据流
-	if e.Config.UseDoubleBuffer {
-		// 动态生成带块序号的数据，便于前端观察用户缓冲区逐步累加
-		actualSize := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
-		if actualSize > chunkSize {
-			actualSize = chunkSize
+	switch e.SubStep {
+	case 1:
+		// 子步骤 1: DMA 控制器初始化
+		if e.Config.UseDoubleBuffer {
+			remainingBytes := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
+			if remainingBytes > chunkSize {
+				remainingBytes = chunkSize
+			}
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【DMA 启动】磁盘控制器初始化 DMA 传输：源=磁盘扇区, 目标=内核缓冲区 %d, 字节数=%d。"+
+					"DMA 控制器接管总线，CPU 可继续执行其他任务。",
+				e.ActiveWriteBuffer, remainingBytes)
+		} else {
+			e.Snapshot.StepDescription = "【DMA 启动】磁盘控制器初始化 DMA 传输：源=磁盘扇区, 目标=内核缓冲区。" +
+				"DMA 控制器接管总线，CPU 可继续执行其他任务。"
 		}
-		chunkPrefix := fmt.Sprintf("[CHUNK_%d_START]", e.CurrentChunk)
-		chunkBody := fmt.Sprintf("OS_DATA_BLOCK_%d", e.CurrentChunk)
-		chunkData := chunkPrefix + chunkBody
-		// 填充到接近实际块大小，以便前端看到可观测的数据差异
-		for len(chunkData) < int(actualSize) {
-			chunkData += fmt.Sprintf("_%X", len(chunkData))
-		}
-		e.Snapshot.HardwareState.DataRegister = []byte(chunkData[:actualSize])
-		e.Snapshot.StepDescription = fmt.Sprintf(
-			"【模拟硬件】物理读取数据块 %d/%d 完毕（%d 字节），数据已载入设备数据寄存器。"+
-				"正在进行 DMA 传输至内核缓冲区 %d。向 CPU 发出硬件中断信号！",
-			e.CurrentChunk+1, e.TotalChunks, actualSize, e.ActiveWriteBuffer)
-	} else {
-		e.Snapshot.HardwareState.DataRegister = []byte("OS_DATA_STREAM")
-		e.Snapshot.StepDescription = "【模拟硬件】物理读取完毕，数据已载入设备数据寄存器。正在向 CPU 发出硬件中断信号！"
-	}
 
-	e.Snapshot.HardwareState.StatusRegister = "0x04: DATA_READY"
-	e.CurrentLayer = pb.SystemSnapshot_LAYER_INTERRUPT
+	case 2:
+		// 子步骤 2: 磁盘读取 + 数据就绪
+		if e.InjectedFault == pb.FaultType_FAULT_HARDWARE_TIMEOUT {
+			e.Snapshot.HardwareState.StatusRegister = "0x03: DEVICE_ERROR"
+			e.Snapshot.StepDescription = "【磁盘读取 异常】硬件响应超时！磁道损坏或设备控制器掉线。"
+			e.Snapshot.FinalErrorCode = "EIO (Input/output error)"
+			e.Snapshot.IsFinished = true
+			e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_READY
+			return
+		}
+
+		// 生成模拟数据
+		if e.Config.UseDoubleBuffer {
+			actualSize := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
+			if actualSize > chunkSize {
+				actualSize = chunkSize
+			}
+			chunkPrefix := fmt.Sprintf("[CHUNK_%d_START]", e.CurrentChunk)
+			chunkBody := fmt.Sprintf("OS_DATA_BLOCK_%d", e.CurrentChunk)
+			chunkData := chunkPrefix + chunkBody
+			for len(chunkData) < int(actualSize) {
+				chunkData += fmt.Sprintf("_%X", len(chunkData))
+			}
+			e.Snapshot.HardwareState.DataRegister = []byte(chunkData[:actualSize])
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【磁盘读取】磁头寻道完成，扇区数据 (%d 字节) 通过 DMA 传输至内核缓冲区 %d。"+
+					"数据已写入设备数据寄存器 DATA_REG。",
+				actualSize, e.ActiveWriteBuffer)
+		} else {
+			// 单缓冲模式：生成 bytesToRead 字节的模拟数据
+			dataSize := e.Config.BytesToRead
+			data := "[SINGLE_BUF]OS_READ_DATA"
+			for len(data) < int(dataSize) {
+				data += fmt.Sprintf("_%X", len(data))
+			}
+			e.Snapshot.HardwareState.DataRegister = []byte(data[:dataSize])
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【磁盘读取】磁头寻道完成，扇区数据 (%d 字节) 通过 DMA 传输至内核缓冲区。数据已写入 DATA_REG。",
+				dataSize)
+		}
+
+		e.Snapshot.HardwareState.StatusRegister = "0x04: DATA_READY"
+
+	case 3:
+		// 子步骤 3: 硬件中断发出
+		e.Snapshot.StepDescription = "【硬件中断】磁盘控制器通过 IRQ 线向 CPU 发出中断请求 (IRQ#14)。" +
+			"中断控制器 (PIC/APIC) 将中断向量号传递给 CPU，触发中断处理流程。"
+		e.nextLayer(pb.SystemSnapshot_LAYER_INTERRUPT)
+	}
 }
+
+// =================================================================
+//  L3 中断处理程序 ISR (3 个子步骤)
+// =================================================================
 
 func (e *SimulationEngine) executeInterruptLayer() {
 	e.Snapshot.CurrentActiveLayer = pb.SystemSnapshot_LAYER_INTERRUPT
-	e.Snapshot.StepDescription = "【中断处理层】CPU 响应中断。中断处理程序接管，开始将数据从硬件寄存器搬运到内核缓冲区..."
+	e.Snapshot.TotalSubSteps = 3
 
-	// Step 1: 硬件数据寄存器 → 内核缓冲区 (DMA 完成，数据到达目标缓冲区)
-	hwData := e.Snapshot.HardwareState.DataRegister
-	if e.ActiveWriteBuffer == 1 {
-		e.Snapshot.MemoryState.KernelBuffer_1Data = hwData
-	} else {
-		e.Snapshot.MemoryState.KernelBuffer_2Data = hwData
-	}
+	switch e.SubStep {
+	case 1:
+		// 子步骤 1: ISR 接管 — 保存上下文，识别中断源
+		e.Snapshot.StepDescription = "【ISR 接管】CPU 响应 IRQ#14，硬件自动压栈 (EIP/CS/EFLAGS)。" +
+			"中断处理程序 (ISR) 入口：保存寄存器上下文，识别中断源为磁盘控制器。"
 
-	// 清空硬件数据寄存器
-	e.Snapshot.HardwareState.DataRegister = []byte{}
-	e.Snapshot.HardwareState.StatusRegister = "0x01: READY"
-
-	// Step 2: 内核缓冲区 → 用户缓冲区 (copy_to_user，累加拼接)
-	if e.ActiveWriteBuffer == 1 {
-		e.Snapshot.MemoryState.UserBufferData = append(
-			e.Snapshot.MemoryState.UserBufferData,
-			e.Snapshot.MemoryState.KernelBuffer_1Data...)
-	} else {
-		e.Snapshot.MemoryState.UserBufferData = append(
-			e.Snapshot.MemoryState.UserBufferData,
-			e.Snapshot.MemoryState.KernelBuffer_2Data...)
-	}
-
-	// 更新 MemoryView 追踪字段，供前端可视化
-	e.Snapshot.MemoryState.ActiveWriteBuffer = e.ActiveWriteBuffer
-	e.Snapshot.MemoryState.ActiveReadBuffer = e.ActiveReadBuffer
-	e.Snapshot.MemoryState.CurrentChunk = e.CurrentChunk
-	e.Snapshot.MemoryState.TotalChunks = e.TotalChunks
-
-	// Step 3: 判断是否还有更多数据块需要读取
-	if e.Config.UseDoubleBuffer && e.CurrentChunk+1 < e.TotalChunks {
-		// 推进块计数器
-		e.CurrentChunk++
-
-		// 乒乓切换：刚写入的缓冲区变为"读取源"，另一个缓冲区变为"DMA 目标"
-		e.ActiveReadBuffer = e.ActiveWriteBuffer
+	case 2:
+		// 子步骤 2: 数据拷贝 — 硬件寄存器 → 内核缓冲区 → 用户缓冲区
+		hwData := e.Snapshot.HardwareState.DataRegister
 		if e.ActiveWriteBuffer == 1 {
-			e.ActiveWriteBuffer = 2
+			e.Snapshot.MemoryState.KernelBuffer_1Data = hwData
 		} else {
-			e.ActiveWriteBuffer = 1
+			e.Snapshot.MemoryState.KernelBuffer_2Data = hwData
 		}
 
-		// 编程下一次 DMA（中断处理层同时完成数据拷贝和新 DMA 调度）
-		e.Snapshot.HardwareState.CmdRegister = fmt.Sprintf(
-			"0x01: READ_SECTOR (Chunk %d/%d, DMA→Buf%d)",
-			e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer)
-		e.Snapshot.HardwareState.StatusRegister = "0x02: DEVICE_BUSY"
-		e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_BLOCKED
-		e.Snapshot.ProcessState.WaitReason = fmt.Sprintf(
-			"等待数据块 %d/%d 通过 DMA 传输至缓冲区 %d",
-			e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer)
+		// 清空硬件数据寄存器
+		e.Snapshot.HardwareState.DataRegister = []byte{}
+		e.Snapshot.HardwareState.StatusRegister = "0x01: READY"
+
+		// 内核缓冲区 → 用户缓冲区 (copy_to_user)
+		if e.ActiveWriteBuffer == 1 {
+			e.Snapshot.MemoryState.UserBufferData = append(
+				e.Snapshot.MemoryState.UserBufferData,
+				e.Snapshot.MemoryState.KernelBuffer_1Data...)
+		} else {
+			e.Snapshot.MemoryState.UserBufferData = append(
+				e.Snapshot.MemoryState.UserBufferData,
+				e.Snapshot.MemoryState.KernelBuffer_2Data...)
+		}
+
+		// 更新追踪字段
+		e.Snapshot.MemoryState.ActiveWriteBuffer = e.ActiveWriteBuffer
+		e.Snapshot.MemoryState.ActiveReadBuffer = e.ActiveReadBuffer
+		e.Snapshot.MemoryState.CurrentChunk = e.CurrentChunk
+		e.Snapshot.MemoryState.TotalChunks = e.TotalChunks
 
 		e.Snapshot.StepDescription = fmt.Sprintf(
-			"【中断处理层 乒乓切换】数据块 %d/%d 已从内核缓冲区 %d 拷贝至用户空间。同时已对数据块 %d/%d 编程 DMA → 缓冲区 %d。"+
-				"硬件正在并行写入缓冲区 %d，CPU 下次将从缓冲区 %d 读取。",
-			e.CurrentChunk, e.TotalChunks, e.ActiveReadBuffer,
-			e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer,
-			e.ActiveWriteBuffer, e.ActiveReadBuffer)
+			"【数据拷贝】ISR 执行: ①硬件数据寄存器 → 内核缓冲区 %d (%d 字节) ②copy_to_user() → 用户缓冲区 0x%X。"+
+				"累计已接收 %d 字节。",
+			e.ActiveWriteBuffer, len(hwData), e.Config.UserBufferAddr,
+			len(e.Snapshot.MemoryState.UserBufferData))
 
-		// 回到设备驱动层，继续下一轮的 DMA 周期
-		e.CurrentLayer = pb.SystemSnapshot_LAYER_DRIVER
-	} else {
-		// 所有数据块读取完毕
-		e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_RUNNING
-		e.Snapshot.ProcessState.WaitReason = ""
+	case 3:
+		// 子步骤 3: 判断是否还有更多数据块
+		if e.Config.UseDoubleBuffer && e.CurrentChunk+1 < e.TotalChunks {
+			e.CurrentChunk++
 
-		if e.Config.UseDoubleBuffer {
+			// 乒乓切换
+			e.ActiveReadBuffer = e.ActiveWriteBuffer
+			if e.ActiveWriteBuffer == 1 {
+				e.ActiveWriteBuffer = 2
+			} else {
+				e.ActiveWriteBuffer = 1
+			}
+
+			// 编程下一次 DMA
+			e.Snapshot.HardwareState.CmdRegister = fmt.Sprintf(
+				"0x01: READ_SECTOR (Chunk %d/%d, DMA→Buf%d)",
+				e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer)
+			e.Snapshot.HardwareState.StatusRegister = "0x02: DEVICE_BUSY"
+			e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_BLOCKED
+			e.Snapshot.ProcessState.WaitReason = fmt.Sprintf(
+				"等待数据块 %d/%d 通过 DMA 传输至缓冲区 %d",
+				e.CurrentChunk+1, e.TotalChunks, e.ActiveWriteBuffer)
+
 			e.Snapshot.StepDescription = fmt.Sprintf(
-				"【I/O 结束】所有 %d 个数据块已通过乒乓缓冲机制顺利送达用户缓冲区。"+
-					"`read` 系统调用成功返回 %d 字节，用户进程继续执行！",
-				e.TotalChunks, len(e.Snapshot.MemoryState.UserBufferData))
-		} else {
-			e.Snapshot.StepDescription = "【I/O 结束】数据顺利送达用户缓冲区。`read` 系统调用成功返回，用户进程继续执行！"
-		}
+				"【乒乓切换】数据块 %d/%d 已送达用户空间。"+
+					"缓冲区切换: 写入目标 Buf%d → Buf%d, 读取源 Buf%d → Buf%d。"+
+					"已编程下一块 DMA (Chunk %d → Buf%d)。进程再次阻塞等待。",
+				e.CurrentChunk, e.TotalChunks,
+				e.ActiveReadBuffer, e.ActiveWriteBuffer, e.ActiveWriteBuffer, e.ActiveReadBuffer,
+				e.CurrentChunk+1, e.ActiveWriteBuffer)
 
-		e.Snapshot.IsFinished = true
+			// 回到驱动层，继续下一轮 DMA 周期
+			e.nextLayer(pb.SystemSnapshot_LAYER_DRIVER)
+		} else {
+			// 所有数据块读取完毕
+			e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_RUNNING
+			e.Snapshot.ProcessState.WaitReason = ""
+
+			// 更新文件偏移量 (模拟 lseek 行为)
+			bytesRead := int64(len(e.Snapshot.MemoryState.UserBufferData))
+			var oldPos, newPos int64
+			for _, entry := range e.FdTable {
+				if entry.Fd == e.CurrentFd {
+					oldPos = entry.FilePos
+					entry.FilePos += bytesRead
+					newPos = entry.FilePos
+					break
+				}
+			}
+
+			if e.Config.UseDoubleBuffer {
+				e.Snapshot.StepDescription = fmt.Sprintf(
+					"【I/O 完成】全部 %d 个数据块通过乒乓缓冲机制送达用户缓冲区。"+
+						"sys_read() 返回 %d 字节。文件偏移量: %d → %d。"+
+						"ISR 恢复上下文 (iret)，进程 %d 回到用户态继续执行。",
+					e.TotalChunks, bytesRead, oldPos, newPos,
+					e.Snapshot.ProcessState.Pid)
+			} else {
+				e.Snapshot.StepDescription = fmt.Sprintf(
+					"【I/O 完成】数据已送达用户缓冲区。sys_read() 返回 %d 字节。"+
+						"文件偏移量: %d → %d。"+
+						"ISR 恢复上下文 (iret)，进程 %d 回到用户态继续执行。",
+					bytesRead, oldPos, newPos, e.Snapshot.ProcessState.Pid)
+			}
+
+			e.Snapshot.IsFinished = true
+		}
 	}
 }

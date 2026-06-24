@@ -111,15 +111,28 @@ const layerMap = { 0:'USER', 1:'VFS', 2:'DRV', 4:'HW', 3:'INT' };
 function onSnapshot(snapMsg) {
     const snap = snapMsg.toObject();
     stepCount++;
-    log(`[S${stepCount}] ${(snap.stepDescription || '').substring(0, 80)}`);
+
+    // 子步骤日志格式: [S3.2] (VFS 2/4) description...
+    const subInfo = (snap.totalSubSteps > 1)
+        ? ` (${snap.subStep}/${snap.totalSubSteps})`
+        : '';
+    log(`[S${stepCount}${subInfo}] ${(snap.stepDescription || '').substring(0, 80)}`);
 
     const activeLayer = layerMap[snap.currentActiveLayer] || 'USER';
 
+    // 清除所有层卡片状态，高亮当前活动层
     document.querySelectorAll('.layer-card').forEach(el => el.classList.remove('active','error'));
     const card = $(`layer-${activeLayer}`);
     if (card) {
         card.classList.add('active');
         if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') card.classList.add('error');
+        // 更新活动层卡片的子步骤指示器
+        const stepsEl = card.querySelector('.layer-steps');
+        if (stepsEl) {
+            if (snap.totalSubSteps > 1) {
+                stepsEl.textContent = snap.subStep + '/' + snap.totalSubSteps + ' 步';
+            }
+        }
     }
 
     document.querySelectorAll('.connector').forEach(el => el.classList.remove('active'));

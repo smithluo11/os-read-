@@ -6055,7 +6055,9 @@ var IOSimBundle = (() => {
             memoryState: (f = msg.getMemoryState()) && proto.io_simulator.MemoryView.toObject(includeInstance, f),
             hardwareState: (f = msg.getHardwareState()) && proto.io_simulator.HardwareView.toObject(includeInstance, f),
             isFinished: jspb2.Message.getBooleanFieldWithDefault(msg, 6, false),
-            finalErrorCode: jspb2.Message.getFieldWithDefault(msg, 7, "")
+            finalErrorCode: jspb2.Message.getFieldWithDefault(msg, 7, ""),
+            subStep: jspb2.Message.getFieldWithDefault(msg, 8, 0),
+            totalSubSteps: jspb2.Message.getFieldWithDefault(msg, 9, 0)
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -6117,6 +6119,20 @@ var IOSimBundle = (() => {
                 reader.readString()
               );
               msg.setFinalErrorCode(value);
+              break;
+            case 8:
+              var value = (
+                /** @type {number} */
+                reader.readInt32()
+              );
+              msg.setSubStep(value);
+              break;
+            case 9:
+              var value = (
+                /** @type {number} */
+                reader.readInt32()
+              );
+              msg.setTotalSubSteps(value);
               break;
             default:
               reader.skipField();
@@ -6181,6 +6197,20 @@ var IOSimBundle = (() => {
         if (f.length > 0) {
           writer.writeString(
             7,
+            f
+          );
+        }
+        f = message.getSubStep();
+        if (f !== 0) {
+          writer.writeInt32(
+            8,
+            f
+          );
+        }
+        f = message.getTotalSubSteps();
+        if (f !== 0) {
+          writer.writeInt32(
+            9,
             f
           );
         }
@@ -6272,6 +6302,24 @@ var IOSimBundle = (() => {
       };
       proto.io_simulator.SystemSnapshot.prototype.setFinalErrorCode = function(value) {
         return jspb2.Message.setProto3StringField(this, 7, value);
+      };
+      proto.io_simulator.SystemSnapshot.prototype.getSubStep = function() {
+        return (
+          /** @type {number} */
+          jspb2.Message.getFieldWithDefault(this, 8, 0)
+        );
+      };
+      proto.io_simulator.SystemSnapshot.prototype.setSubStep = function(value) {
+        return jspb2.Message.setProto3IntField(this, 8, value);
+      };
+      proto.io_simulator.SystemSnapshot.prototype.getTotalSubSteps = function() {
+        return (
+          /** @type {number} */
+          jspb2.Message.getFieldWithDefault(this, 9, 0)
+        );
+      };
+      proto.io_simulator.SystemSnapshot.prototype.setTotalSubSteps = function(value) {
+        return jspb2.Message.setProto3IntField(this, 9, value);
       };
       if (jspb2.Message.GENERATE_TO_OBJECT) {
         proto.io_simulator.ProcessBlock.prototype.toObject = function(opt_includeInstance) {

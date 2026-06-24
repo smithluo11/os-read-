@@ -167,17 +167,55 @@ I/O 通道是比 DMA 控制器更高阶的 I/O 管理单元。通道本身是一
 
 ### 4.1 状态机引擎（`internal/engine/engine.go`）
 
-模拟的是一次 `sys_read()` 调用从发起到返回的完整生命周期，由前端每次点击「下一步」驱动 `NextStep()` 推进一层。
+引擎采用 **层 + 子步骤** 双层状态机架构。每次 `NextStep()` 调用推进一个子步骤 (`SubStep`)，而非直接切换层。五个层每层 3-4 个子步骤，单缓冲完整流程 17 步，双缓冲 (4 chunk) 43 步。
 
 ```
-Step 0: L0 用户层 — 用户进程调用 read(fd, buf, len)，陷入内核
-Step 1: L1 VFS 层 — 路径解析 + 权限校验 + 缓冲分配 + 构造 IRP
-Step 2: L2 驱动层 — 写入控制寄存器 + 下发 DMA 指令 + 进程 BLOCKED
-Step 3: L4 硬件层 — 磁盘寻道读扇区 + DMA 传输 + 发 IRQ 信号
-Step 4: L3 ISR 层 — 数据拷贝 + copy_to_user + (乒乓切换/完成)
-  ├─ 有更多 chunk → 乒乓切换 A↔B + 编程下次 DMA → 回到 Step 2
-  └─ 最后 chunk → 进程 RUNNING + IsFinished = true
+L0 用户层 I/O 软件 (4 子步骤)
+  [1/4] 库函数调用: fread() → libc 从 FILE* 提取 fd
+  [2/4] fd 表查找: 遍历 FdTable, fd=3 → OpenFileEntry{path, flags, pos, inode}
+        故障: fd 不存在 → EBADF
+  [3/4] access_ok(): 校验 buf 地址 < TASK_SIZE (0xC0000000)
+        故障: 地址越界 + FAULT_INVALID_ADDRESS → EFAULT
+  [4/4] 陷入内核: eax=NR_read, int 0x80 / sysenter, Ring3→Ring0
+
+L1 设备无关软件 VFS (4 子步骤)
+  [1/4] 路径解析: path → dentry → inode (dcache 查找)
+  [2/4] ACL 权限校验: 4 级管线 (路径穿越→文件存在→敏感文件→Unix 权限位)
+        故障: EACCES / EPERM / ENOENT 即时终止
+  [3/4] 缓冲分配: 单缓冲 vs 双缓冲 (ping-pong A/B, TotalChunks 计算)
+  [4/4] IRP 构造: IRP_READ → Dev:Disk0, 向驱动层提交
+
+L2 设备驱动程序 (3 子步骤)
+  [1/3] IRP 解析: 提取操作类型、设备、长度、数据块序号
+  [2/3] 寄存器编程: 内存映射 I/O 写入 CMD_REG (READ_SECTOR), STS_REG (DEVICE_BUSY)
+  [3/3] 进程阻塞: STATE_BLOCKED, WaitReason="等待 DMA 传输 + 硬件中断"
+
+L4 硬件层 磁盘控制器 (3 子步骤)
+  [1/3] DMA 启动: 初始化源地址(磁盘扇区)→目标地址(内核缓冲区), DMA 接管总线
+  [2/3] 磁盘读取: 磁头寻道→扇区数据→DATA_REG, 故障: FAULT_HARDWARE_TIMEOUT → EIO
+  [3/3] 硬件中断: STS_REG=DATA_READY, IRQ#14 → CPU
+
+L3 中断处理程序 ISR (3 子步骤)
+  [1/3] ISR 接管: 硬件自动压栈 EIP/CS/EFLAGS, 保存寄存器上下文
+  [2/3] 数据拷贝: HW DATA_REG → 内核缓冲区 → copy_to_user() → 用户缓冲区 (累加)
+  [3/3] 乒乓切换/I/O 完成:
+        ├─ 更多 chunk → A↔B 翻转, 编程下次 DMA, 进程阻塞 → 回 L2 (循环)
+        └─ 最后 chunk → 进程 RUNNING, 更新文件偏移量, IsFinished=true
 ```
+
+#### L0 用户层数据结构
+
+```go
+type OpenFileEntry struct {
+    Fd       int32   // 文件描述符 (如 3)
+    FilePath string  // 关联的文件路径
+    Flags    int32   // 打开标志: 0=O_RDONLY
+    FilePos  int64   // 当前文件读写偏移量
+    InodePtr string  // 指向 inode 的指针标识
+}
+```
+
+`SimulationEngine.FdTable` 维护进程的打开文件表，在 L0 sub-step 2 中实际执行 fd→file*→inode 的查找。I/O 完成后 `FilePos` 更新，模拟 lseek 偏移量推进。
 
 #### 双缓冲（乒乓缓冲）核心算法
 
@@ -185,7 +223,7 @@ Step 4: L3 ISR 层 — 数据拷贝 + copy_to_user + (乒乓切换/完成)
 初始化: ActiveWriteBuffer = 1, ActiveReadBuffer = 1, CurrentChunk = 0
 TotalChunks = ceil(BytesToRead / 4096)
 
-每次 ISR 响应后:
+每次 ISR 响应后 (sub-step 3):
   if CurrentChunk + 1 < TotalChunks:
       CurrentChunk++
       ActiveReadBuffer  = ActiveWriteBuffer    // 刚写入的变读取源
@@ -193,7 +231,7 @@ TotalChunks = ceil(BytesToRead / 4096)
       编程下次 DMA → 硬件开始写新 ActiveWriteBuffer
       进程 BLOCKED → 回到 Driver 层循环
   else:
-      进程 RUNNING，模拟完成
+      进程 RUNNING，更新 FilePos += bytesRead，模拟完成
 ```
 
 前端通过粒子动画可视化乒乓切换：当 `activeWriteBuffer` 变更时，Canvas 粒子从硬件卡片以贝塞尔曲线飞向新的目标缓冲区。
@@ -241,13 +279,15 @@ Byte 6+:    protobuf 序列化数据
 
 ### 4.4 前端可视化
 
-#### SVG 拓扑连线
+#### SVG 拓扑连线与子步骤指示
 
 五层拓扑图使用 SVG `<line>` 元素连接各层卡片，所有坐标通过 `viewBox="0 0 720 750"` 统一管理。包括：
 
 - **下行路径** (IRP↓)：USER→VFS→DRV→HW，橙黄色实线，由 `.connector.active` 类控制高亮
 - **上行路径** (IRQ↑)：HW→INT→DRV，橙黄色实线（INT 发 IRQ 后回到 DRV）
 - **数据返回路径** (DATA↑)：DRV→VFS→USER，钴蓝色虚线 + 反向动画，当用户缓冲区收到数据时激活
+
+每层卡片右上角显示**子步骤进度标签**（如 `2/4 步`），橙色高亮，仅活动层可见。日志格式 `[S2 (2/4)]` 标记当前子步骤位置。
 
 前端 JS 通过 `getBoundingClientRect()` 实时获取卡片在 Canvas 上的位置，而非依赖硬编码坐标，使得页面缩放时粒子动画仍然准确。
 
@@ -283,19 +323,19 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 
 | 测试场景 | 配置 | 预期结果 |
 |---------|------|---------|
-| 单缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=off, user=user1 | 完整 5 步流程通过，SUCCESS |
-| 双缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=on, user=user1 | 乒乓切换可见，粒子动画触发，chunk 分块逐步累加 |
-| 双缓冲 + 大文件 (65536B) | bytes=65536, dblbuf=on | 16 个 4KB chunk 完整传输，缓冲区 A/B 多次翻转 |
+| 单缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=off, user=user1 | 17 步子步骤完成，L0 4 步 (fd 表→access_ok→陷入内核)，I/O 完成后显示文件偏移量更新 |
+| 双缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=on, user=user1 | 约 25 步 (4KB×4 chunk)，乒乓切换可见，粒子动画触发，层卡片显示子步骤进度 |
+| 双缓冲 + 大文件 (65536B) | bytes=65536, dblbuf=on | 16 个 4KB chunk 完整传输 (7 + 16×9 = 151 步)，缓冲区 A/B 多次翻转 |
 
 ### 5.2 故障注入测试
 
 | 故障类型 | 注入方式 | 错误码 | 验证点 |
 |---------|---------|--------|--------|
-| 权限拒绝 | 选择 /etc/shadow + user1 用户 | EACCES | VFS 层中断，卡片变红 |
-| 非法地址 | 选 0xFFFFFFFF 地址 | EFAULT | VFS 层中断，地址越界提示 |
-| 硬件超时 | 选 fault=3 + 正常路径 | EIO | 硬件层中断，STS=DEVICE_ERROR |
-| 路径穿越 | 选 ../../etc/shadow | EPERM | VFS 层中断，路径遍历告警 |
-| 文件不存在 | 选 /nonexistent | ENOENT | VFS 层中断，文件未找到 |
+| 权限拒绝 | 选择 /etc/shadow + user1 用户 | EACCES | L1 sub-step 2 (ACL) 中断，卡片变红 |
+| 非法地址 | 选 0xFFFFFFFF 地址 | EFAULT | L0 sub-step 3 (access_ok) 中断，地址越界提示 |
+| 硬件超时 | 选 fault=3 + 正常路径 | EIO | L4 sub-step 2 (磁盘读取) 中断，STS=DEVICE_ERROR |
+| 路径穿越 | 选 ../../etc/shadow | EPERM | L1 sub-step 2 (ACL路径穿越检测) 中断 |
+| 文件不存在 | 选 /nonexistent | ENOENT | L1 sub-step 2 (文件存在检查) 中断 |
 
 ### 5.3 权限边界测试
 

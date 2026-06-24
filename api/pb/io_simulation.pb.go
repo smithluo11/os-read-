@@ -445,6 +445,8 @@ type SystemSnapshot struct {
 	HardwareState      *HardwareView          `protobuf:"bytes,5,opt,name=hardware_state,json=hardwareState,proto3" json:"hardware_state,omitempty"`
 	IsFinished         bool                   `protobuf:"varint,6,opt,name=is_finished,json=isFinished,proto3" json:"is_finished,omitempty"`
 	FinalErrorCode     string                 `protobuf:"bytes,7,opt,name=final_error_code,json=finalErrorCode,proto3" json:"final_error_code,omitempty"`
+	SubStep            int32                  `protobuf:"varint,8,opt,name=sub_step,json=subStep,proto3" json:"sub_step,omitempty"`                     // 当前层内子步骤序号 (1-based)
+	TotalSubSteps      int32                  `protobuf:"varint,9,opt,name=total_sub_steps,json=totalSubSteps,proto3" json:"total_sub_steps,omitempty"` // 当前层的子步骤总数
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -526,6 +528,20 @@ func (x *SystemSnapshot) GetFinalErrorCode() string {
 		return x.FinalErrorCode
 	}
 	return ""
+}
+
+func (x *SystemSnapshot) GetSubStep() int32 {
+	if x != nil {
+		return x.SubStep
+	}
+	return 0
+}
+
+func (x *SystemSnapshot) GetTotalSubSteps() int32 {
+	if x != nil {
+		return x.TotalSubSteps
+	}
+	return 0
 }
 
 type ProcessBlock struct {
@@ -771,7 +787,7 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x03uid\x18\x01 \x01(\rR\x03uid\x12\x10\n" +
 	"\x03gid\x18\x02 \x01(\rR\x03gid\x12\x1a\n" +
 	"\busername\x18\x03 \x01(\tR\busername\x12\x19\n" +
-	"\bhome_dir\x18\x04 \x01(\tR\ahomeDir\"\x88\x04\n" +
+	"\bhome_dir\x18\x04 \x01(\tR\ahomeDir\"\xcb\x04\n" +
 	"\x0eSystemSnapshot\x12T\n" +
 	"\x14current_active_layer\x18\x01 \x01(\x0e2\".io_simulator.SystemSnapshot.LayerR\x12currentActiveLayer\x12)\n" +
 	"\x10step_description\x18\x02 \x01(\tR\x0fstepDescription\x12?\n" +
@@ -780,7 +796,9 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x0ehardware_state\x18\x05 \x01(\v2\x1a.io_simulator.HardwareViewR\rhardwareState\x12\x1f\n" +
 	"\vis_finished\x18\x06 \x01(\bR\n" +
 	"isFinished\x12(\n" +
-	"\x10final_error_code\x18\a \x01(\tR\x0efinalErrorCode\"i\n" +
+	"\x10final_error_code\x18\a \x01(\tR\x0efinalErrorCode\x12\x19\n" +
+	"\bsub_step\x18\b \x01(\x05R\asubStep\x12&\n" +
+	"\x0ftotal_sub_steps\x18\t \x01(\x05R\rtotalSubSteps\"i\n" +
 	"\x05Layer\x12\x0e\n" +
 	"\n" +
 	"LAYER_USER\x10\x00\x12\x15\n" +
