@@ -6477,7 +6477,9 @@ var IOSimBundle = (() => {
             currentChunk: jspb2.Message.getFieldWithDefault(msg, 7, 0),
             totalChunks: jspb2.Message.getFieldWithDefault(msg, 8, 0),
             cacheHit: jspb2.Message.getBooleanFieldWithDefault(msg, 9, false),
-            cachedPages: jspb2.Message.getFieldWithDefault(msg, 10, 0)
+            cachedPages: jspb2.Message.getFieldWithDefault(msg, 10, 0),
+            retryCount: jspb2.Message.getFieldWithDefault(msg, 11, 0),
+            retryMax: jspb2.Message.getFieldWithDefault(msg, 12, 0)
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -6567,6 +6569,20 @@ var IOSimBundle = (() => {
               );
               msg.setCachedPages(value);
               break;
+            case 11:
+              var value = (
+                /** @type {number} */
+                reader.readUint32()
+              );
+              msg.setRetryCount(value);
+              break;
+            case 12:
+              var value = (
+                /** @type {number} */
+                reader.readUint32()
+              );
+              msg.setRetryMax(value);
+              break;
             default:
               reader.skipField();
               break;
@@ -6648,6 +6664,20 @@ var IOSimBundle = (() => {
         if (f !== 0) {
           writer.writeUint32(
             10,
+            f
+          );
+        }
+        f = message.getRetryCount();
+        if (f !== 0) {
+          writer.writeUint32(
+            11,
+            f
+          );
+        }
+        f = message.getRetryMax();
+        if (f !== 0) {
+          writer.writeUint32(
+            12,
             f
           );
         }
@@ -6789,6 +6819,24 @@ var IOSimBundle = (() => {
       };
       proto.io_simulator.MemoryView.prototype.setCachedPages = function(value) {
         return jspb2.Message.setProto3IntField(this, 10, value);
+      };
+      proto.io_simulator.MemoryView.prototype.getRetryCount = function() {
+        return (
+          /** @type {number} */
+          jspb2.Message.getFieldWithDefault(this, 11, 0)
+        );
+      };
+      proto.io_simulator.MemoryView.prototype.setRetryCount = function(value) {
+        return jspb2.Message.setProto3IntField(this, 11, value);
+      };
+      proto.io_simulator.MemoryView.prototype.getRetryMax = function() {
+        return (
+          /** @type {number} */
+          jspb2.Message.getFieldWithDefault(this, 12, 0)
+        );
+      };
+      proto.io_simulator.MemoryView.prototype.setRetryMax = function(value) {
+        return jspb2.Message.setProto3IntField(this, 12, value);
       };
       if (jspb2.Message.GENERATE_TO_OBJECT) {
         proto.io_simulator.HardwareView.prototype.toObject = function(opt_includeInstance) {
@@ -7020,7 +7068,8 @@ var IOSimBundle = (() => {
         FAULT_INVALID_ADDRESS: 2,
         FAULT_HARDWARE_TIMEOUT: 3,
         FAULT_PATH_TRAVERSAL: 4,
-        FAULT_FILE_NOT_FOUND: 5
+        FAULT_FILE_NOT_FOUND: 5,
+        FAULT_EAGAIN: 6
       };
       goog2.object.extend(exports2, proto.io_simulator);
     }

@@ -137,6 +137,7 @@
       <option value="3">硬件超时 (EIO)</option>
       <option value="4">路径穿越 (EPERM)</option>
       <option value="5">文件不存在 (ENOENT)</option>
+      <option value="6">设备忙重试 (EAGAIN)</option>
     </select>
   </div>
 
@@ -256,6 +257,7 @@
       <h3 class="accordion-header">内核差错控制台 <span class="accordion-arrow">▾</span></h3>
       <div class="accordion-body">
         <code id="err-msg">等待指令...</code>
+        <code id="retry-info" style="display:none; margin-top:6px; color:var(--amber);"></code>
       </div>
     </div>
 

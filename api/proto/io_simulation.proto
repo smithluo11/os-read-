@@ -37,6 +37,7 @@ enum FaultType {
   FAULT_HARDWARE_TIMEOUT = 3;
   FAULT_PATH_TRAVERSAL = 4;
   FAULT_FILE_NOT_FOUND = 5;
+  FAULT_EAGAIN = 6;              // 设备忙，可重试 (非终态)
 }
 
 message UserContext {
@@ -83,6 +84,8 @@ message MemoryView {
   int32 total_chunks = 8;
   bool cache_hit = 9;           // 当前读是否页缓存命中
   uint32 cached_pages = 10;     // 缓存中的总页数
+  uint32 retry_count = 11;      // EAGAIN 重试计数
+  uint32 retry_max = 12;        // EAGAIN 最大重试次数
 }
 
 message HardwareView {

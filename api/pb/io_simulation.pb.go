@@ -30,6 +30,7 @@ const (
 	FaultType_FAULT_HARDWARE_TIMEOUT  FaultType = 3
 	FaultType_FAULT_PATH_TRAVERSAL    FaultType = 4
 	FaultType_FAULT_FILE_NOT_FOUND    FaultType = 5
+	FaultType_FAULT_EAGAIN            FaultType = 6 // 设备忙，可重试 (非终态)
 )
 
 // Enum value maps for FaultType.
@@ -41,6 +42,7 @@ var (
 		3: "FAULT_HARDWARE_TIMEOUT",
 		4: "FAULT_PATH_TRAVERSAL",
 		5: "FAULT_FILE_NOT_FOUND",
+		6: "FAULT_EAGAIN",
 	}
 	FaultType_value = map[string]int32{
 		"FAULT_NONE":              0,
@@ -49,6 +51,7 @@ var (
 		"FAULT_HARDWARE_TIMEOUT":  3,
 		"FAULT_PATH_TRAVERSAL":    4,
 		"FAULT_FILE_NOT_FOUND":    5,
+		"FAULT_EAGAIN":            6,
 	}
 )
 
@@ -624,6 +627,8 @@ type MemoryView struct {
 	TotalChunks        int32                  `protobuf:"varint,8,opt,name=total_chunks,json=totalChunks,proto3" json:"total_chunks,omitempty"`
 	CacheHit           bool                   `protobuf:"varint,9,opt,name=cache_hit,json=cacheHit,proto3" json:"cache_hit,omitempty"`           // 当前读是否页缓存命中
 	CachedPages        uint32                 `protobuf:"varint,10,opt,name=cached_pages,json=cachedPages,proto3" json:"cached_pages,omitempty"` // 缓存中的总页数
+	RetryCount         uint32                 `protobuf:"varint,11,opt,name=retry_count,json=retryCount,proto3" json:"retry_count,omitempty"`    // EAGAIN 重试计数
+	RetryMax           uint32                 `protobuf:"varint,12,opt,name=retry_max,json=retryMax,proto3" json:"retry_max,omitempty"`          // EAGAIN 最大重试次数
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -724,6 +729,20 @@ func (x *MemoryView) GetCacheHit() bool {
 func (x *MemoryView) GetCachedPages() uint32 {
 	if x != nil {
 		return x.CachedPages
+	}
+	return 0
+}
+
+func (x *MemoryView) GetRetryCount() uint32 {
+	if x != nil {
+		return x.RetryCount
+	}
+	return 0
+}
+
+func (x *MemoryView) GetRetryMax() uint32 {
+	if x != nil {
+		return x.RetryMax
 	}
 	return 0
 }
@@ -872,7 +891,7 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x05State\x12\x11\n" +
 	"\rSTATE_RUNNING\x10\x00\x12\x11\n" +
 	"\rSTATE_BLOCKED\x10\x01\x12\x0f\n" +
-	"\vSTATE_READY\x10\x02\"\xa8\x03\n" +
+	"\vSTATE_READY\x10\x02\"\xe6\x03\n" +
 	"\n" +
 	"MemoryView\x12(\n" +
 	"\x10user_buffer_data\x18\x01 \x01(\fR\x0euserBufferData\x12/\n" +
@@ -885,7 +904,10 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\ftotal_chunks\x18\b \x01(\x05R\vtotalChunks\x12\x1b\n" +
 	"\tcache_hit\x18\t \x01(\bR\bcacheHit\x12!\n" +
 	"\fcached_pages\x18\n" +
-	" \x01(\rR\vcachedPages\"\x83\x02\n" +
+	" \x01(\rR\vcachedPages\x12\x1f\n" +
+	"\vretry_count\x18\v \x01(\rR\n" +
+	"retryCount\x12\x1b\n" +
+	"\tretry_max\x18\f \x01(\rR\bretryMax\"\x83\x02\n" +
 	"\fHardwareView\x12!\n" +
 	"\fcmd_register\x18\x01 \x01(\tR\vcmdRegister\x12'\n" +
 	"\x0fstatus_register\x18\x02 \x01(\tR\x0estatusRegister\x12#\n" +
@@ -895,7 +917,7 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x0fdma_destination\x18\x05 \x01(\tR\x0edmaDestination\x12\x1b\n" +
 	"\tdma_count\x18\x06 \x01(\rR\bdmaCount\x12\x1d\n" +
 	"\n" +
-	"dma_status\x18\a \x01(\tR\tdmaStatus*\xa3\x01\n" +
+	"dma_status\x18\a \x01(\tR\tdmaStatus*\xb5\x01\n" +
 	"\tFaultType\x12\x0e\n" +
 	"\n" +
 	"FAULT_NONE\x10\x00\x12\x1b\n" +
@@ -903,7 +925,8 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x15FAULT_INVALID_ADDRESS\x10\x02\x12\x1a\n" +
 	"\x16FAULT_HARDWARE_TIMEOUT\x10\x03\x12\x18\n" +
 	"\x14FAULT_PATH_TRAVERSAL\x10\x04\x12\x18\n" +
-	"\x14FAULT_FILE_NOT_FOUND\x10\x052k\n" +
+	"\x14FAULT_FILE_NOT_FOUND\x10\x05\x12\x10\n" +
+	"\fFAULT_EAGAIN\x10\x062k\n" +
 	"\x12IOSimulationEngine\x12U\n" +
 	"\x10StreamSimulation\x12\x1f.io_simulator.SimControlCommand\x1a\x1c.io_simulator.SystemSnapshot(\x010\x01B\n" +
 	"Z\b./api/pbb\x06proto3"

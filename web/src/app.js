@@ -351,6 +351,19 @@ function onSnapshot(snapMsg) {
     }
 
     // 内核差错控制台：根据快照状态更新
+    const retryEl = $('retry-info');
+    if (snap.memoryState && snap.memoryState.retryCount > 0) {
+        retryEl.style.display = 'block';
+        retryEl.textContent = '⏳ 设备忙重试: ' + snap.memoryState.retryCount + ' / ' + snap.memoryState.retryMax;
+        retryEl.style.color = 'var(--amber)';
+    } else if (snap.memoryState && snap.memoryState.retryMax > 0 && snap.memoryState.retryCount >= snap.memoryState.retryMax) {
+        retryEl.style.display = 'block';
+        retryEl.textContent = '✓ 重试成功 (' + snap.memoryState.retryMax + ' 次后设备就绪)';
+        retryEl.style.color = 'var(--phosphor-dim)';
+    } else {
+        retryEl.style.display = 'none';
+    }
+
     const errEl = $('err-msg');
     if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') {
         errEl.textContent = snap.finalErrorCode;

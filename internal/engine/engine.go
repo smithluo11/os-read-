@@ -40,6 +40,10 @@ type SimulationEngine struct {
 	// 页缓存 (Page Cache) — 模拟内核文件页缓存
 	PageCache   map[string][]byte // key: filePath, value: cached data
 	CacheMissed bool              // 当前读是否缓存未命中 (用于 ISR 完成后回写)
+
+	// EAGAIN 重试状态
+	RetryCount uint32
+	RetryMax   uint32
 }
 
 // NewEngine 初始化一次全新的 read 模拟
@@ -59,6 +63,7 @@ func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *Simulatio
 		CurrentLayer:  pb.SystemSnapshot_LAYER_USER,
 		CacheMissed:   false,
 		PageCache:     pageCache,
+		RetryMax:      3,
 		SubStep:       0, // 首次 NextStep 会推进到 1
 		StepIndex:     0,
 		Config:        config,
@@ -94,6 +99,8 @@ func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *Simulatio
 				ActiveReadBuffer:   1,
 				CurrentChunk:       0,
 				TotalChunks:        totalChunks,
+				RetryCount:         0,
+				RetryMax:           3,
 			},
 			HardwareState: &pb.HardwareView{
 				CmdRegister:      "0x00: NO_OP",
@@ -369,6 +376,27 @@ func (e *SimulationEngine) executeDriverLayer() {
 
 	case 2:
 		// 子步骤 2: 设备寄存器编程 (Memory-Mapped I/O)
+
+		// EAGAIN 可恢复错误：设备忙，重试
+		if e.InjectedFault == pb.FaultType_FAULT_EAGAIN && e.RetryCount < e.RetryMax {
+			e.RetryCount++
+			e.Snapshot.MemoryState.RetryCount = e.RetryCount
+			e.Snapshot.MemoryState.RetryMax = e.RetryMax
+			e.Snapshot.HardwareState.StatusRegister = "0x02: DEVICE_BUSY (EAGAIN)"
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【设备忙 重试 %d/%d】EAGAIN — 设备控制器暂时不可用。"+
+					"驱动程序重试写入设备寄存器。点击「▶ 下一步」继续重试。",
+				e.RetryCount, e.RetryMax)
+			e.SubStep = 1 // 保持 sub-step 2 (NextStep +1 = 2)
+			return
+		}
+		// 重试耗尽：设备就绪，正常编程
+		if e.InjectedFault == pb.FaultType_FAULT_EAGAIN && e.RetryCount >= e.RetryMax {
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【重试成功】%d 次重试后设备控制器就绪，寄存器编程正常。CMD_REG 写入成功。",
+				e.RetryMax)
+		}
+
 		if e.Config.UseDoubleBuffer {
 			remainingBytes := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
 			if remainingBytes > chunkSize {
