@@ -248,6 +248,33 @@ TotalChunks = ceil(BytesToRead / 4096)
 
 **Unix 权限位检查**：遵循 Linux 9 位权限模型（owner/group/other × rwx），按 `uid==0`（root 绕过）→ `uid==owner`（owner read bit）→ `gid==group`（group read bit）→ other read bit 的顺序判定。
 
+### 4.2.1 页缓存 (Page Cache) — VFS 层加速
+
+模拟 Linux 内核的页缓存 (page cache / buffer cache) 机制。`SimulationEngine` 维护 `PageCache map[string][]byte`，以文件路径为键缓存已读取的数据。
+
+```
+L1 sub-step 3: 页缓存查找
+  ├─ 命中 (Cache Hit) → 数据直接从 RAM 拷贝到用户缓冲区
+  │   跳过 L2/L4/L3 全部磁盘 I/O，立即返回 IsFinished=true
+  │
+  └─ 未命中 (Cache Miss) → 设置 CacheMissed=true，继续走磁盘 I/O
+      读取完成后在 L3 sub-step 3 回写 PageCache
+```
+
+前端通过页缓存状态徽章实时显示：命中 ✓（绿）、未命中（橙）、空（灰）、已禁用。
+
+### 4.2.2 EAGAIN 可恢复错误 — 非终态重试
+
+区别于 5 种终态故障（一旦触发立即终止），EAGAIN 模拟设备控制器暂时忙碌的可恢复场景。在 L2 驱动层 sub-step 2（寄存器编程）中触发：
+
+```
+驱动尝试写 CMD_REG → 设备返回 DEVICE_BUSY (EAGAIN)
+  ├─ RetryCount < RetryMax(3) → 步进停在 sub-step 2，点击继续重试
+  └─ RetryCount >= RetryMax → 重试成功，正常编程寄存器，继续 I/O
+```
+
+`SimulationEngine` 维护 `RetryCount` 和 `RetryMax`，`MemoryView` 含 `retry_count`/`retry_max` 字段供前端显示。
+
 ### 4.3 gRPC-Web 双向流通信
 
 ```
@@ -283,11 +310,43 @@ Byte 6+:    protobuf 序列化数据
 
 五层拓扑图使用 SVG `<line>` 元素连接各层卡片，所有坐标通过 `viewBox="0 0 720 750"` 统一管理。包括：
 
-- **下行路径** (IRP↓)：USER→VFS→DRV→HW，橙黄色实线，由 `.connector.active` 类控制高亮
-- **上行路径** (IRQ↑)：HW→INT→DRV，橙黄色实线（INT 发 IRQ 后回到 DRV）
-- **数据返回路径** (DATA↑)：DRV→VFS→USER，钴蓝色虚线 + 反向动画，当用户缓冲区收到数据时激活
+- **下行路径** (IRP↓)：USER→VFS→DRV→HW，青蓝色实线高亮
+- **上行路径** (IRQ↑)：HW→INT→DRV，青蓝色实线
+- **数据返回路径** (DATA↑)：DRV→VFS→USER，钴蓝色虚线 + DATA↑ 标签
 
 每层卡片右上角显示**子步骤进度标签**（如 `2/4 步`），橙色高亮，仅活动层可见。日志格式 `[S2 (2/4)]` 标记当前子步骤位置。
+
+#### 下行/上行阶段独立展示
+
+前端 `onSnapshot()` 内根据层流转方向自动判断当前阶段：
+
+```
+idle → request (IRP↓ 下行) → hardware (磁盘读取) → return (DATA↑ 返回) → complete
+```
+
+- 顶部胶囊标签动态切换：青蓝色「IRP ↓ 下行请求」→ 钴蓝色「DATA ↑ 数据返回」
+- 活动层卡片边框颜色随阶段变化（下行青蓝 / 上行钴蓝）
+- SVG 连接器按阶段点亮：下行只亮 IRP↓ 路径，上行点亮 IRQ↑ + DATA↑ 路径
+
+#### DMA 控制器面板
+
+硬件层卡片下方渲染 DMA 控制器 4 寄存器网格：
+
+| 寄存器 | 说明 | 值示例 |
+|--------|------|--------|
+| 源地址 | 磁盘扇区 | `0x0400: Disk0 Sector` |
+| 目标地址 | 内核缓冲区 | `0xBEEF1000: Kernel Buf1` |
+| 传输字节 | 当前 DMA 传输量 | `4096` |
+| DMA 状态 | 传输阶段 | `IDLE → SETUP → TRANSFERRING → DONE/ERROR` |
+
+状态颜色编码：SETUP(蓝) → TRANSFERRING(橙动画) → DONE(绿) → ERROR(红)。
+
+#### 自动连点速度控制与初始化/重置智能切换
+
+- **速度控制**：`auto-speed` 滑块 0-5 档映射 10/25/50/75/100/200ms，实时显示当前间隔。运行时调整速度自动重启定时器
+- **三态按钮**：「⚡ 自动连点」(播放) →「⏸ 暂停」→「▶ 继续」
+- **初始化/重置智能切换**：未连接时按钮文本「● 连接并初始化」；已连接后自动切换为「↺ 重置」，点击直接重新初始化无需断开
+- Debug 模式 (URL `?debug=1`) 显示自动连点按钮和速度滑块
 
 前端 JS 通过 `getBoundingClientRect()` 实时获取卡片在 Canvas 上的位置，而非依赖硬编码坐标，使得页面缩放时粒子动画仍然准确。
 
@@ -331,11 +390,26 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 
 | 故障类型 | 注入方式 | 错误码 | 验证点 |
 |---------|---------|--------|--------|
-| 权限拒绝 | 选择 /etc/shadow + user1 用户 | EACCES | L1 sub-step 2 (ACL) 中断，卡片变红 |
+| 权限拒绝 | 故障下拉选 EACCES | EACCES | L1 sub-step 2 (ACL) 中断，卡片变红，差错控制台红色 |
 | 非法地址 | 选 0xFFFFFFFF 地址 | EFAULT | L0 sub-step 3 (access_ok) 中断，地址越界提示 |
-| 硬件超时 | 选 fault=3 + 正常路径 | EIO | L4 sub-step 2 (磁盘读取) 中断，STS=DEVICE_ERROR |
-| 路径穿越 | 选 ../../etc/shadow | EPERM | L1 sub-step 2 (ACL路径穿越检测) 中断 |
-| 文件不存在 | 选 /nonexistent | ENOENT | L1 sub-step 2 (文件存在检查) 中断 |
+| 硬件超时 | 故障下拉选 EIO | EIO | L4 sub-step 2 中断，STS=DEVICE_ERROR，DMA 状态=ERROR |
+| 路径穿越 | 故障下拉选 EPERM | EPERM | L1 sub-step 2 (路径穿越检测) 中断 |
+| 文件不存在 | 故障下拉选 ENOENT | ENOENT | L1 sub-step 2 (文件存在检查) 中断 |
+| 设备忙重试 | 故障下拉选 EAGAIN | EAGAIN | L2 sub-step 2 触发，前端显示重试计数 1/3→2/3→3/3，然后成功 |
+
+### 5.3 页缓存测试
+
+| 测试场景 | 配置 | 预期结果 |
+|---------|------|---------|
+| 首次读取 (缓存未命中) | 页缓存开启 + 正常流 | VFS sub-step 3 显示「未命中」，走完整磁盘 I/O，完成后回写缓存 |
+| 二次读取 (缓存命中) | 同上配置，再点一次初始化 | VFS sub-step 3 显示「命中 ✓」，直接返回数据，跳过 L2/L4/L3 |
+
+### 5.4 前端新增功能测试
+
+1. **阶段标签**：走完一次完整流程，验证顶部胶囊从「等待初始化」→「IRP ↓ 下行请求」→「💾 硬件磁盘读取」→「DATA ↑ 数据返回」→「✅ 完成」
+2. **DMA 面板**：硬件层激活时 DMA 4 寄存器可见，状态依次变化 SETUP→TRANSFERRING→DONE
+3. **速度控制**：自动连点 → 调整速度滑块 → 暂停 → 继续
+4. **重置按钮**：模拟完成后按钮显示「↺ 重置」→ 点击直接重新初始化
 
 ### 5.3 权限边界测试
 
@@ -466,23 +540,25 @@ io-sim-server (systemd, 127.0.0.1:18083)
 ```
 .
 ├── api/
-│   ├── proto/io_simulation.proto   # Protobuf 定义 (8 个 message, 1 个 service)
+│   ├── proto/io_simulation.proto   # Protobuf 定义 (9 个 message, 1 个 service, 6 种 FaultType)
 │   └── pb/                         # protoc 自动生成 (禁止手改)
 ├── cmd/server/main.go              # 服务入口 + 静态文件服务
 ├── internal/
 │   ├── engine/
-│   │   ├── engine.go               # 状态机引擎 (320 行, 双缓冲 + 中断驱动 DMA)
+│   │   ├── engine.go               # 状态机引擎 (644 行, 子步骤 + 页缓存 + EAGAIN + DMA)
+│   │   ├── engine_test.go          # 引擎测试 (652 行, 22 个场景)
 │   │   └── filesystem.go           # ACL 文件校验管线 (132 行, 4 级校验)
 │   └── service/handler.go          # gRPC 双向流处理 (88 行)
 ├── web/src/
-│   ├── index.html                  # 主页: 五层拓扑图 + 控制面板
+│   ├── index.html                  # 主页: 五层拓扑图 + DMA 面板 + 阶段标签
 │   ├── detail.html                 # 层级详情页: 逐层剖析
-│   ├── style.css                   # 全局样式表 (CSS 变量 + 6:4 Grid)
-│   ├── app.js                      # 前端逻辑 (快照渲染 + 粒子动画 + 自动连点)
+│   ├── style.css                   # 全局样式表 (CSS 变量 + 6:4 Grid + 阶段/缓存/DMA)
+│   ├── app.js                      # 前端逻辑 (快照渲染 + 阶段切换 + 粒子动画 + 自动连点)
 │   ├── grpc-entry.js               # gRPC-Web WS 客户端 (手写帧编解码)
 │   └── bundle.js                   # google-protobuf + pb 打包
-├── Makefile                        # proto / proto-js 代码生成
+├── Makefile                        # proto / proto-js / run 快捷命令
 ├── DESIGN.md                       # 本设计文档
+├── API.md                          # gRPC API 参考文档
 └── README.md                       # 项目文档 (快速开始 + 小组分工)
 ```
 
@@ -505,6 +581,7 @@ io-sim-server (systemd, 127.0.0.1:18083)
 
 - Tanenbaum & Bos, *Modern Operating Systems*, 4th Edition, Chapter 5: Input/Output
 - 操作系统课程设计实验指导书 — 选题七: I/O 软件层 read 操作模拟
-- Probuf 语言指南: https://protobuf.dev/
+- gRPC API 参考文档: [API.md](./API.md)
+- Protocol Buffers 语言指南: https://protobuf.dev/
 - gRPC-Web 协议规范: https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-WEB.md
 - Improbable gRPC-Web 实现: https://github.com/improbable-eng/grpc-web
