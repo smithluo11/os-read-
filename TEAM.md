@@ -143,7 +143,7 @@
 **负责内容**:
 - **CSS 变量设计体系**：颜色令牌（`--phosphor` / `--cobalt` / `--amber` / `--cyan` / `--ink` / `--green`）、背景（`--bg-panel` / `--bg-deep` / `--bg-card`）、边框（`--border` / `--border-light`）、阴影（`--shadow-sm`）
 - **6:4 CSS Grid 宽屏主布局** + 右侧面板 flex 纵向弹性链（`flex:1` + `height:0` + `min-height:0` 解决溢出）
-- **顶部控制栏**：72px 三区 flex 布局（连接区 / 配置区 / 步进区），header-badge 插入
+- **顶部控制栏**：双行 flex 布局 — 上行：连接区（左）+ 步进区/阶段徽章（右），下行：配置区（居中）
 - **层级卡片样式**：胶囊标签 (L0~L4)、悬停 glow 效果、active/error/phase-request/phase-return 状态切换
 - **阶段颜色体系**：phase-request（青蓝边框）、phase-hardware（琥珀边框）、phase-return（钴蓝边框 + 脉冲动画）
 - **DMA 面板样式**：`.dma-grid` 2×2 网格、`.dma-status` 状态颜色（dma-setup 蓝 / dma-transferring 橙动画 / dma-done 绿 / dma-error 红）

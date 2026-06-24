@@ -78,17 +78,29 @@ body {
 
 .top-control-bar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     padding: 0 24px;
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border);
-    height: 72px;
     box-sizing: border-box;
     box-shadow: var(--shadow-sm);
     position: sticky;
     top: 0;
     z-index: 100;
+}
+
+.header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+}
+.header-row + .header-row {
+    border-top: 1px solid var(--border-light);
+}
+.header-config {
+    justify-content: center;
+    padding: 4px 0;
 }
 
 .ctrl-group {
@@ -98,8 +110,6 @@ body {
 }
 
 .ctrl-config {
-    flex: 1;
-    justify-content: center;
     gap: 16px;
 }
 

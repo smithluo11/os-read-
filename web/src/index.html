@@ -18,7 +18,7 @@
     padding: 24px !important;
     max-width: none !important; /* 彻底释放宽度 */
     margin: 0 !important;
-    height: calc(100vh - 72px - 32px) !important; /* 顶部栏72px + 底部链接32px */
+    height: calc(100vh - 96px - 32px) !important; /* 顶部双行栏~96px + 底部链接32px */
     box-sizing: border-box;
   }
 
@@ -93,63 +93,67 @@
 <body>
 
 <header class="top-control-bar">
-  <div class="ctrl-group ctrl-connect">
-    <span class="logo">IO::SIM</span>
-    <input type="text" id="cfg-host" class="inp" value="" placeholder="后端地址 (留空=当前域名)">
-    <button id="btn-init" class="btn btn-primary">● 连接并初始化</button>
-    <button id="btn-reset" class="btn btn-reset hidden">↻ 重置 (保留缓存)</button>
-    <span id="conn-status" class="conn-status disconnected">未连接</span>
-  </div>
-
-  <div class="ctrl-group ctrl-config">
-    <select id="sel-user" class="sel">
-      <option value="user1">👤 普通用户 (uid=1000, gid=1000)</option>
-      <option value="root">🔒 Root 超级用户 (uid=0, gid=0)</option>
-    </select>
-    <select id="cfg-path" class="sel">
-      <option value="/home/user1/notes.txt">/home/user1/notes.txt（普通文件）</option>
-      <option value="/etc/shadow">/etc/shadow（系统敏感文件）</option>
-      <option value="../../etc/shadow">../../etc/shadow（路径穿越攻击）</option>
-      <option value="/tmp/data.bin">/tmp/data.bin（设备文件）</option>
-      <option value="/nonexistent">/nonexistent（文件不存在）</option>
-    </select>
-    <div class="field-inline">
-      <label>字节: <strong id="val-bytes">16384</strong></label>
-      <input type="range" id="cfg-bytes" min="128" max="65536" value="16384" step="128">
+  <div class="header-row">
+    <div class="ctrl-group ctrl-connect">
+      <span class="logo">IO::SIM</span>
+      <input type="text" id="cfg-host" class="inp" value="" placeholder="后端地址 (留空=当前域名)">
+      <button id="btn-init" class="btn btn-primary">● 连接并初始化</button>
+      <button id="btn-reset" class="btn btn-reset hidden">↻ 重置 (保留缓存)</button>
+      <span id="conn-status" class="conn-status disconnected">未连接</span>
     </div>
-    <select id="cfg-addr" class="sel">
-      <option value="0x10000000">0x10000000（用户空间安全地址）</option>
-      <option value="0xFFFFFFFF">0xFFFFFFFF（内核空间越界地址）</option>
-    </select>
-    <label class="toggle" title="双缓冲">
-      <input type="checkbox" id="cfg-dblbuf" checked>
-      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      <span id="lbl-dblbuf" class="toggle-label">双缓冲</span>
-    </label>
-    <label class="toggle" title="页缓存">
-      <input type="checkbox" id="cfg-cache" checked>
-      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-      <span id="lbl-cache" class="toggle-label">页缓存</span>
-    </label>
-    <select id="cfg-fault" class="sel">
-      <option value="0">正常流转 (无故障注入)</option>
-      <option value="1">权限拒绝 (EACCES)</option>
-      <option value="2">非法地址 (EFAULT)</option>
-      <option value="3">硬件超时 (EIO)</option>
-      <option value="4">路径穿越 (EPERM)</option>
-      <option value="5">文件不存在 (ENOENT)</option>
-      <option value="6">设备忙重试 (EAGAIN)</option>
-    </select>
+
+    <div class="ctrl-group ctrl-step">
+      <span id="phase-badge" class="phase-badge header-badge">⏳ 等待初始化</span>
+      <button id="btn-step" class="btn" disabled>▶ 下一步</button>
+      <button id="btn-autoplay" class="btn btn-warn hidden">⚡ 自动连点</button>
+      <div class="auto-speed-group hidden" id="auto-speed-group">
+        <label class="speed-label">速度</label>
+        <input type="range" id="auto-speed" class="speed-slider" min="0" max="5" value="2" step="1">
+        <span class="speed-val" id="speed-val">50ms</span>
+      </div>
+    </div>
   </div>
 
-  <div class="ctrl-group ctrl-step">
-    <span id="phase-badge" class="phase-badge header-badge">⏳ 等待初始化</span>
-    <button id="btn-step" class="btn" disabled>▶ 下一步</button>
-    <button id="btn-autoplay" class="btn btn-warn hidden">⚡ 自动连点</button>
-    <div class="auto-speed-group hidden" id="auto-speed-group">
-      <label class="speed-label">速度</label>
-      <input type="range" id="auto-speed" class="speed-slider" min="0" max="5" value="2" step="1">
-      <span class="speed-val" id="speed-val">50ms</span>
+  <div class="header-row header-config">
+    <div class="ctrl-group ctrl-config">
+      <select id="sel-user" class="sel">
+        <option value="user1">👤 普通用户 (uid=1000, gid=1000)</option>
+        <option value="root">🔒 Root 超级用户 (uid=0, gid=0)</option>
+      </select>
+      <select id="cfg-path" class="sel">
+        <option value="/home/user1/notes.txt">/home/user1/notes.txt（普通文件）</option>
+        <option value="/etc/shadow">/etc/shadow（系统敏感文件）</option>
+        <option value="../../etc/shadow">../../etc/shadow（路径穿越攻击）</option>
+        <option value="/tmp/data.bin">/tmp/data.bin（设备文件）</option>
+        <option value="/nonexistent">/nonexistent（文件不存在）</option>
+      </select>
+      <div class="field-inline">
+        <label>字节: <strong id="val-bytes">16384</strong></label>
+        <input type="range" id="cfg-bytes" min="128" max="65536" value="16384" step="128">
+      </div>
+      <select id="cfg-addr" class="sel">
+        <option value="0x10000000">0x10000000（用户空间安全地址）</option>
+        <option value="0xFFFFFFFF">0xFFFFFFFF（内核空间越界地址）</option>
+      </select>
+      <label class="toggle" title="双缓冲">
+        <input type="checkbox" id="cfg-dblbuf" checked>
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span id="lbl-dblbuf" class="toggle-label">双缓冲</span>
+      </label>
+      <label class="toggle" title="页缓存">
+        <input type="checkbox" id="cfg-cache" checked>
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span id="lbl-cache" class="toggle-label">页缓存</span>
+      </label>
+      <select id="cfg-fault" class="sel">
+        <option value="0">正常流转 (无故障注入)</option>
+        <option value="1">权限拒绝 (EACCES)</option>
+        <option value="2">非法地址 (EFAULT)</option>
+        <option value="3">硬件超时 (EIO)</option>
+        <option value="4">路径穿越 (EPERM)</option>
+        <option value="5">文件不存在 (ENOENT)</option>
+        <option value="6">设备忙重试 (EAGAIN)</option>
+      </select>
     </div>
   </div>
 </header>
