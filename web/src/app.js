@@ -6,8 +6,14 @@
 let streamHandle = null;
 let prevSnap = null;
 let autoTimer = null;
+let autoPaused = false;
 let stepCount = 0;
 let phase = 'idle'; // 'idle' | 'request' | 'hardware' | 'return' | 'complete'
+
+// 自动连点速度档位 (ms)
+const AUTO_SPEEDS = [10, 25, 50, 100, 200, 500];
+const AUTO_DEFAULT_IDX = 2; // 50ms
+let autoSpeedIdx = AUTO_DEFAULT_IDX;
 
 const phaseMeta = {
     idle:     { label: '等待初始化',        icon: '⏳', cls: '' },
@@ -29,6 +35,9 @@ const cfgAddr  = $('cfg-addr');
 const cfgDblBuf = $('cfg-dblbuf');
 const cfgFault  = $('cfg-fault');
 const cfgHost   = $('cfg-host');
+const autoSpeedSlider = $('auto-speed');
+const autoSpeedGroup  = $('auto-speed-group');
+const speedVal        = $('speed-val');
 const connStatus = $('conn-status');
 const valBytes   = $('val-bytes');
 const stepLog    = $('step-log');
@@ -44,6 +53,7 @@ function triggerInit() {
     $('ubuf-display').textContent = ''; $('ubuf-len').textContent = '0';
     $('pbar').style.width = '0%'; $('chunk-stat').textContent = '0 / 1';
     clearAutoPlay();
+    updateSpeedDisplay();
     btnStep.disabled = false;
 
     const addrStr = cfgAddr.value;
@@ -341,16 +351,64 @@ function updateKbuf(el, id, mem) {
     else if (id === mem.activeReadBuffer && raw && raw.length > 0) el.classList.add('read');
 }
 
-// ---- Auto-Play ----
-function clearAutoPlay() {
-    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-    btnAuto.innerHTML = '⚡ 自动连点';
+// ---- Auto-Play (三态: 播放 → 暂停 → 继续) ----
+function getAutoInterval() {
+    return AUTO_SPEEDS[autoSpeedIdx] || 50;
 }
+
+function updateSpeedDisplay() {
+    speedVal.textContent = getAutoInterval() + 'ms';
+    autoSpeedSlider.value = autoSpeedIdx;
+}
+
+function startAutoPlay() {
+    autoPaused = false;
+    btnAuto.textContent = '⏸ 暂停';
+    btnAuto.classList.add('btn-pause');
+    const interval = getAutoInterval();
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = setInterval(doStep, interval);
+}
+
+function pauseAutoPlay() {
+    autoPaused = true;
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    btnAuto.textContent = '▶ 继续';
+    btnAuto.classList.remove('btn-pause');
+}
+
+function resumeAutoPlay() {
+    startAutoPlay(); // same as start, sets interval fresh
+}
+
+function clearAutoPlay() {
+    autoPaused = false;
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    btnAuto.textContent = '⚡ 自动连点';
+    btnAuto.classList.remove('btn-pause');
+}
+
 function toggleAutoPlay() {
-    if (autoTimer) clearAutoPlay();
-    else {
-        btnAuto.innerHTML = '■ 停止';
-        autoTimer = setInterval(doStep, 50);
+    if (!autoTimer && !autoPaused) {
+        // Idle → Start
+        startAutoPlay();
+    } else if (autoTimer && !autoPaused) {
+        // Running → Pause
+        pauseAutoPlay();
+    } else if (autoPaused) {
+        // Paused → Resume
+        resumeAutoPlay();
+    }
+}
+
+// 变更速度：如果正在运行，立即重启定时器
+function onSpeedChange() {
+    autoSpeedIdx = parseInt(autoSpeedSlider.value);
+    updateSpeedDisplay();
+    if (autoTimer && !autoPaused) {
+        // 重启定时器以应用新速度
+        clearInterval(autoTimer);
+        autoTimer = setInterval(doStep, getAutoInterval());
     }
 }
 
@@ -436,10 +494,16 @@ function log(msg) {
 btnInit.addEventListener('click', connectAndInit); // 按钮整合：点击一次连接+Init
 btnStep.addEventListener('click', doStep);
 btnAuto.addEventListener('click', toggleAutoPlay);
+autoSpeedSlider.addEventListener('input', onSpeedChange);
+updateSpeedDisplay();
 cfgBytes.addEventListener('input', () => valBytes.textContent = cfgBytes.value);
 cfgDblBuf.addEventListener('change', () => $('lbl-dblbuf').textContent = cfgDblBuf.checked ? '双缓冲' : '单缓冲');
 
-if (new URLSearchParams(window.location.search).get('debug') === '1') btnAuto.classList.remove('hidden');
+// Debug 模式：显示自动连点按钮 + 速度控制器
+if (new URLSearchParams(window.location.search).get('debug') === '1') {
+    btnAuto.classList.remove('hidden');
+    autoSpeedGroup.classList.remove('hidden');
+}
 
 // ---- Layer card click → detail page ----
 document.querySelectorAll('.layer-card').forEach(function (card) {

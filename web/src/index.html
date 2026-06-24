@@ -138,6 +138,11 @@
   <div class="ctrl-group ctrl-step">
     <button id="btn-step" class="btn" disabled>▶ 下一步</button>
     <button id="btn-autoplay" class="btn btn-warn hidden">⚡ 自动连点</button>
+    <div class="auto-speed-group hidden" id="auto-speed-group">
+      <label class="speed-label">速度</label>
+      <input type="range" id="auto-speed" class="speed-slider" min="0" max="5" value="2" step="1">
+      <span class="speed-val" id="speed-val">50ms</span>
+    </div>
   </div>
 </header>
 
