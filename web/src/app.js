@@ -79,6 +79,12 @@ function triggerInit() {
 function updateInitButton() {
     const connected = streamHandle && connStatus.textContent.includes('Connected');
     btnInit.textContent = connected ? '↻ 重新初始化' : '● 连接并初始化';
+    // 已连接时给按钮增加重置样式提示
+    if (connected) {
+        btnInit.classList.add('btn-reset');
+    } else {
+        btnInit.classList.remove('btn-reset');
+    }
 }
 
 function connectAndInit() {
@@ -142,7 +148,7 @@ function updatePhaseBadge() {
     if (!badge) return;
     const meta = phaseMeta[phase] || phaseMeta.idle;
     badge.textContent = meta.icon + ' ' + meta.label;
-    badge.className = 'phase-badge ' + meta.cls;
+    badge.className = 'phase-badge header-badge ' + meta.cls;
 }
 
 function detectPhase(snap, prev) {
@@ -180,14 +186,19 @@ const layerMap = { 0:'USER', 1:'VFS', 2:'DRV', 4:'HW', 3:'INT' };
 
 function onSnapshot(snapMsg) {
     const snap = snapMsg.toObject();
-    stepCount++;
-    detectPhase(snap, prevSnap);
 
-    // 子步骤日志格式: [S3.2] (VFS 2/4) description...
-    const subInfo = (snap.totalSubSteps > 1)
-        ? ` (${snap.subStep}/${snap.totalSubSteps})`
-        : '';
-    log(`[S${stepCount}${subInfo}] ${(snap.stepDescription || '').substring(0, 80)}`);
+    // 跳过 INIT 响应的初始状态快照 (subStep=0 表示尚未开始执行)
+    const isInitSnapshot = !prevSnap && snap.subStep === 0;
+    if (!isInitSnapshot) {
+        stepCount++;
+        detectPhase(snap, prevSnap);
+
+        // 子步骤日志格式: [S3.2] (VFS 2/4) description...
+        const subInfo = (snap.totalSubSteps > 1)
+            ? ` (${snap.subStep}/${snap.totalSubSteps})`
+            : '';
+        log(`[S${stepCount}${subInfo}] ${(snap.stepDescription || '').substring(0, 80)}`);
+    }
 
     const activeLayer = layerMap[snap.currentActiveLayer] || 'USER';
 
@@ -216,43 +227,40 @@ function onSnapshot(snapMsg) {
     document.querySelectorAll('.connector').forEach(el => el.classList.remove('active'));
     const prevLayer = prevSnap ? layerMap[prevSnap.currentActiveLayer] : null;
 
+    // 安全获取 SVG 标签元素 (foreignObject)
+    const irpLabel = document.getElementById('irp-label');
+    const irqLabel = document.getElementById('irq-label');
+    const dataLabel = document.getElementById('data-label');
+
     if (phase === 'return') {
         // 上行返回阶段：点亮 IRQ↑ 和 DATA↑ 返回路径
         if (activeLayer === 'INT') {
-            $('conn-h-i').classList.add('active');           // HW→INT IRQ↑
+            const el = $('conn-h-i'); if (el) el.classList.add('active');
         }
         if (activeLayer === 'DRV' && prevLayer === 'INT') {
-            $('conn-i-d').classList.add('active');           // INT→DRV 循环
+            const el = $('conn-i-d'); if (el) el.classList.add('active');
         }
         if (activeLayer === 'HW') {
-            $('conn-d-h').classList.add('active');           // DRV→HW 请求
+            const el = $('conn-d-h'); if (el) el.classList.add('active');
         }
-        // 点亮返回路径连接器 (DRV→VFS→USER)
         document.querySelectorAll('.connector.return-path').forEach(function(el) {
             el.classList.add('active');
         });
-        // 高亮 DATA↑ 标签
-        const dataLabel = document.getElementById('data-label');
         if (dataLabel) dataLabel.style.opacity = '1';
-        const irqLabel = document.getElementById('irq-label');
         if (irqLabel) irqLabel.style.opacity = '1';
-        const irpLabel = document.getElementById('irp-label');
         if (irpLabel) irpLabel.style.opacity = '0.3';
     } else if (phase === 'hardware') {
-        // 硬件阶段
-        $('conn-d-h').classList.add('active');
-        document.getElementById('irp-label').style.opacity = '1';
-        document.getElementById('irq-label').style.opacity = '0.3';
-        document.getElementById('data-label').style.opacity = '0.3';
+        const el = $('conn-d-h'); if (el) el.classList.add('active');
+        if (irpLabel) irpLabel.style.opacity = '1';
+        if (irqLabel) irqLabel.style.opacity = '0.3';
+        if (dataLabel) dataLabel.style.opacity = '0.3';
     } else {
-        // 下行请求阶段：仅点亮 IRP↓ 连接器
         const connMap = { 'VFS':'conn-u-v', 'DRV':'conn-v-d', 'HW':'conn-d-h' };
-        if (connMap[activeLayer]) $(connMap[activeLayer]).classList.add('active');
-        document.getElementById('irp-label').style.opacity = '1';
-        document.getElementById('irq-label').style.opacity = '0.3';
-        document.getElementById('data-label').style.opacity = '0.3';
-        // INT→DRV 回环在请求阶段不应出现
-        $('conn-i-d').classList.remove('active');
+        if (connMap[activeLayer]) { const el = $(connMap[activeLayer]); if (el) el.classList.add('active'); }
+        if (irpLabel) irpLabel.style.opacity = '1';
+        if (irqLabel) irqLabel.style.opacity = '0.3';
+        if (dataLabel) dataLabel.style.opacity = '0.3';
+        const cid = $('conn-i-d'); if (cid) cid.classList.remove('active');
     }
 
     // 数据返回路径：当用户缓冲区实际收到数据时增强显示
@@ -268,16 +276,20 @@ function onSnapshot(snapMsg) {
         });
     }
 
-    if (snap.stepDescription) $('vfs-desc').textContent = snap.stepDescription.substring(0, 60);
+    if (snap.stepDescription) {
+        const vd = $('vfs-desc'); if (vd) vd.textContent = snap.stepDescription.substring(0, 60);
+    }
 
     if (snap.processState) {
-        $('proc-pid').textContent = snap.processState.pid;
+        const pp = $('proc-pid'); if (pp) pp.textContent = snap.processState.pid;
         const st = snap.processState.state;
         const el = $('proc-state');
-        el.className = 'badge';
-        if (st === 0) { el.textContent = 'RUNNING'; el.classList.add('badge-running'); }
-        else if (st === 1) { el.textContent = 'BLOCKED'; el.classList.add('badge-blocked'); }
-        else { el.textContent = 'READY'; el.classList.add('badge-ready'); }
+        if (el) {
+            el.className = 'badge';
+            if (st === 0) { el.textContent = 'RUNNING'; el.classList.add('badge-running'); }
+            else if (st === 1) { el.textContent = 'BLOCKED'; el.classList.add('badge-blocked'); }
+            else { el.textContent = 'READY'; el.classList.add('badge-ready'); }
+        }
     }
 
     if (snap.memoryState) {
@@ -307,7 +319,6 @@ function onSnapshot(snapMsg) {
             let raw = mem.userBufferData;
             let bytes;
             if (typeof raw === 'string') {
-                // protobuf-js 可能将 bytes 字段以 base64 返回，atob 解码得到原始字节
                 try {
                     let bin = atob(raw);
                     bytes = new Uint8Array(bin.length);
@@ -318,14 +329,14 @@ function onSnapshot(snapMsg) {
             } else {
                 bytes = new Uint8Array(raw);
             }
-            $('ubuf-display').textContent = new TextDecoder().decode(bytes);
-            $('ubuf-len').textContent = bytes.byteLength;
+            const ubDisp = $('ubuf-display'); if (ubDisp) ubDisp.textContent = new TextDecoder().decode(bytes);
+            const ubLen = $('ubuf-len'); if (ubLen) ubLen.textContent = bytes.byteLength;
         }
 
         const total = mem.totalChunks || 1;
         const curr  = mem.currentChunk || 0;
-        $('pbar').style.width = `${((curr + 1) / total) * 100}%`;
-        $('chunk-stat').textContent = `${curr + 1} / ${total}`;
+        const pbar = $('pbar'); if (pbar) pbar.style.width = `${((curr + 1) / total) * 100}%`;
+        const chunkStat = $('chunk-stat'); if (chunkStat) chunkStat.textContent = `${curr + 1} / ${total}`;
 
         if (prevSnap && prevSnap.memoryState && mem.activeWriteBuffer !== prevSnap.memoryState.activeWriteBuffer) {
             spawnParticles(mem.activeWriteBuffer);
@@ -334,42 +345,47 @@ function onSnapshot(snapMsg) {
 
     if (snap.hardwareState) {
         const hw = snap.hardwareState;
-        $('hw-cmd').textContent = `CMD: ${hw.cmdRegister || 'NO_OP'}`;
-        $('hw-status').textContent = `STS: ${hw.statusRegister || 'READY'}`;
+        const hwCmd = $('hw-cmd'); if (hwCmd) hwCmd.textContent = `CMD: ${hw.cmdRegister || 'NO_OP'}`;
+        const hwSts = $('hw-status'); if (hwSts) hwSts.textContent = `STS: ${hw.statusRegister || 'READY'}`;
         // DMA 控制器面板
-        $('dma-src').textContent = hw.dmaSource || '—';
-        $('dma-dst').textContent = hw.dmaDestination || '—';
-        $('dma-cnt').textContent = hw.dmaCount || 0;
-        // DMA 状态带颜色
+        const dmaSrc = $('dma-src'); if (dmaSrc) dmaSrc.textContent = hw.dmaSource || '—';
+        const dmaDst = $('dma-dst'); if (dmaDst) dmaDst.textContent = hw.dmaDestination || '—';
+        const dmaCnt = $('dma-cnt'); if (dmaCnt) dmaCnt.textContent = hw.dmaCount || 0;
         const dmaSts = $('dma-sts');
-        dmaSts.textContent = hw.dmaStatus || 'IDLE';
-        dmaSts.className = 'dma-val dma-status';
-        if (hw.dmaStatus === 'SETUP') dmaSts.classList.add('dma-setup');
-        else if (hw.dmaStatus === 'TRANSFERRING') dmaSts.classList.add('dma-transferring');
-        else if (hw.dmaStatus === 'DONE') dmaSts.classList.add('dma-done');
-        else if (hw.dmaStatus === 'ERROR') dmaSts.classList.add('dma-error');
+        if (dmaSts) {
+            dmaSts.textContent = hw.dmaStatus || 'IDLE';
+            dmaSts.className = 'dma-val dma-status';
+            if (hw.dmaStatus === 'SETUP') dmaSts.classList.add('dma-setup');
+            else if (hw.dmaStatus === 'TRANSFERRING') dmaSts.classList.add('dma-transferring');
+            else if (hw.dmaStatus === 'DONE') dmaSts.classList.add('dma-done');
+            else if (hw.dmaStatus === 'ERROR') dmaSts.classList.add('dma-error');
+        }
     }
 
     // 重试状态提示
     const retryEl = $('retry-info');
-    if (snap.memoryState && snap.memoryState.retryCount > 0 && snap.memoryState.retryCount < snap.memoryState.retryMax) {
-        retryEl.style.display = 'block';
-        retryEl.textContent = '⏳ 设备忙重试: ' + snap.memoryState.retryCount + ' / ' + snap.memoryState.retryMax;
-        retryEl.style.color = 'var(--amber)';
-    } else {
-        retryEl.style.display = 'none';
+    if (retryEl) {
+        if (snap.memoryState && snap.memoryState.retryCount > 0 && snap.memoryState.retryCount < snap.memoryState.retryMax) {
+            retryEl.style.display = 'block';
+            retryEl.textContent = '⏳ 设备忙重试: ' + snap.memoryState.retryCount + ' / ' + snap.memoryState.retryMax;
+            retryEl.style.color = 'var(--amber)';
+        } else {
+            retryEl.style.display = 'none';
+        }
     }
 
     const errEl = $('err-msg');
-    if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') {
-        errEl.textContent = snap.finalErrorCode;
-        errEl.className = 'err-fault';
-    } else if (snap.isFinished) {
-        errEl.textContent = 'SUCCESS';
-        errEl.className = 'err-success';
-    } else if (snap.finalErrorCode && snap.finalErrorCode !== 'SUCCESS') {
-        errEl.textContent = snap.finalErrorCode;
-        errEl.className = 'err-fault';
+    if (errEl) {
+        if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') {
+            errEl.textContent = snap.finalErrorCode;
+            errEl.className = 'err-fault';
+        } else if (snap.isFinished) {
+            errEl.textContent = 'SUCCESS';
+            errEl.className = 'err-success';
+        } else if (snap.finalErrorCode && snap.finalErrorCode !== 'SUCCESS') {
+            errEl.textContent = snap.finalErrorCode;
+            errEl.className = 'err-fault';
+        }
     }
 
     if (snap.isFinished && autoTimer) clearAutoPlay();
@@ -377,13 +393,16 @@ function onSnapshot(snapMsg) {
 }
 
 function updateKbuf(el, id, mem) {
+    if (!el) return;
     el.classList.remove('write', 'read');
     const raw = id === 1 ? mem.kernelBuffer1Data : mem.kernelBuffer2Data;
     const dataEl = el.querySelector('.kbuf-data');
-    if (raw && raw.length > 0) {
-        dataEl.textContent = (typeof raw === 'string' ? raw : new TextDecoder().decode(raw)).substring(0, 24);
-    } else {
-        dataEl.textContent = '';
+    if (dataEl) {
+        if (raw && raw.length > 0) {
+            dataEl.textContent = (typeof raw === 'string' ? raw : new TextDecoder().decode(raw)).substring(0, 24);
+        } else {
+            dataEl.textContent = '';
+        }
     }
     if (id === mem.activeWriteBuffer) el.classList.add('write');
     else if (id === mem.activeReadBuffer && raw && raw.length > 0) el.classList.add('read');
@@ -538,11 +557,9 @@ cfgBytes.addEventListener('input', () => valBytes.textContent = cfgBytes.value);
 cfgDblBuf.addEventListener('change', () => $('lbl-dblbuf').textContent = cfgDblBuf.checked ? '双缓冲' : '单缓冲');
 cfgCache.addEventListener('change', () => $('lbl-cache').textContent = cfgCache.checked ? '页缓存' : '直读');
 
-// Debug 模式：显示自动连点按钮 + 速度控制器
-if (new URLSearchParams(window.location.search).get('debug') === '1') {
-    btnAuto.classList.remove('hidden');
-    autoSpeedGroup.classList.remove('hidden');
-}
+// 自动连点按钮 + 速度控制器始终可见
+btnAuto.classList.remove('hidden');
+autoSpeedGroup.classList.remove('hidden');
 
 // ---- Layer card click → detail page ----
 document.querySelectorAll('.layer-card').forEach(function (card) {

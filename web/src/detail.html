@@ -30,8 +30,8 @@
 
   .detail-grid {
     display: grid;
-    grid-template-columns: 6fr 4fr;
-    gap: 24px; padding: 24px;
+    grid-template-columns: 5fr 5fr;
+    gap: 20px; padding: 20px;
     height: calc(100vh - 56px);
     box-sizing: border-box;
   }
@@ -40,99 +40,102 @@
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px;
     box-shadow: var(--shadow-sm);
-  }
-  .detail-card.ops-card {
     overflow-y: auto;
   }
 
   .detail-card h3 {
     font-family: var(--sans); font-size: 13px; font-weight: 700;
-    color: var(--ink-bright); margin-bottom: 14px;
+    color: var(--ink-bright); margin: 0 0 12px 0;
     text-transform: uppercase; letter-spacing: 1px;
     border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
   }
 
-  /* Mini topology */
+  /* Mini topology with SVG lines */
   .mini-topo {
-    position: relative; width: 100%; height: 320px;
+    position: relative; width: 100%; height: 260px;
     background: var(--bg-deep); border-radius: var(--radius);
-    border: 1px solid var(--border-light); margin-bottom: 16px;
-    overflow: hidden;
+    border: 1px solid var(--border-light); margin-bottom: 14px;
   }
+  .mini-topo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .mini-layer {
     position: absolute; left: 50%; transform: translateX(-50%);
     background: var(--bg-panel); border: 1px solid var(--border);
-    border-radius: 4px; padding: 4px 10px; font-size: 10px;
-    font-family: var(--sans); white-space: nowrap;
-    transition: all 0.3s;
+    border-radius: 6px; padding: 6px 14px; font-size: 11px;
+    font-family: var(--sans); white-space: nowrap; z-index: 2;
+    transition: all 0.4s;
   }
   .mini-layer.highlight {
     border-color: var(--phosphor); background: var(--phosphor-soft);
     font-weight: 700; color: var(--phosphor-dim);
+    box-shadow: 0 0 10px var(--phosphor-glow);
+    transform: translateX(-50%) scale(1.08);
+  }
+  .mini-layer .tag { font-weight: 700; margin-right: 4px; }
+  .mini-arrow {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 14px; z-index: 1; color: var(--ink-dim);
+    font-family: var(--mono);
   }
 
   /* IO flow */
-  .io-flow {
-    display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;
-  }
-  .io-row {
-    display: flex; align-items: center; gap: 12px;
-    font-family: var(--mono); font-size: 13px;
-  }
-  .io-row .detail {
-    font-family: var(--sans); font-size: 12px; color: var(--ink-muted);
-    margin-left: 4px;
-  }
+  .io-flow { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .io-row { display: flex; align-items: flex-start; gap: 10px; font-family: var(--mono); font-size: 13px; }
+  .io-row .detail { font-family: var(--sans); font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
   .io-tag {
-    padding: 3px 10px; border-radius: 4px; font-weight: 700; font-size: 12px;
-    font-family: var(--sans); min-width: 38px; text-align: center;
+    padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 11px;
+    font-family: var(--sans); min-width: 36px; text-align: center; flex-shrink: 0;
   }
   .io-tag.in  { background: var(--phosphor-soft); color: var(--phosphor-dim); }
   .io-tag.out { background: var(--cobalt-soft); color: var(--cobalt); }
 
-  /* Operations */
-  .op-list {
-    list-style: none; padding: 0; counter-reset: op;
-  }
-  .op-list li {
-    counter-increment: op; padding: 10px 0 10px 40px;
-    position: relative; font-size: 14px; line-height: 1.8;
-    color: var(--ink); border-bottom: 1px solid var(--border-light);
+  /* Sub-steps list */
+  .substep-list { list-style: none; padding: 0; }
+  .substep-list li {
+    padding: 10px 0 10px 0; position: relative;
+    font-size: 13px; line-height: 1.7; color: var(--ink);
+    border-bottom: 1px solid var(--border-light);
     font-family: var(--sans);
+    display: flex; gap: 12px; align-items: flex-start;
   }
-  .op-list li::before {
-    content: counter(op);
-    position: absolute; left: 0; top: 10px;
-    width: 26px; height: 26px; border-radius: 50%;
+  .substep-num {
+    width: 28px; height: 28px; border-radius: 50%;
     background: var(--phosphor-soft); color: var(--phosphor-dim);
-    font-size: 12px; font-weight: 700; text-align: center; line-height: 26px;
-    font-family: var(--mono);
+    font-size: 12px; font-weight: 700; text-align: center; line-height: 28px;
+    font-family: var(--mono); flex-shrink: 0;
   }
+  .substep-list li.fault .substep-num { background: #fde8e8; color: #dc2626; }
+  .substep-desc { flex: 1; }
+  .substep-desc code { font-family: var(--mono); font-size: 12px; background: var(--bg-deep); padding: 1px 6px; border-radius: 3px; }
+  .substep-desc .badge-fault { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #fde8e8; color: #dc2626; margin-left: 6px; }
 
   /* Code block */
   .code-block {
     background: var(--bg-deep); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 16px 18px;
+    border-radius: var(--radius); padding: 14px 16px;
     overflow-x: auto; font-family: var(--mono); font-size: 12px;
     line-height: 1.8; color: var(--ink);
   }
   .code-block .kw { color: var(--cyan); }
   .code-block .fn { color: var(--phosphor-dim); font-weight: 600; }
   .code-block .cm { color: var(--ink-dim); font-style: italic; }
+  .code-block .str { color: #059669; }
 
   /* Data structures */
-  .ds-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .ds-tag {
-    font-family: var(--mono); font-size: 12px;
-    padding: 6px 14px; border-radius: 6px;
-    background: var(--bg-card); border: 1px solid var(--border-light);
-    color: var(--ink-muted);
+  .ds-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ds-table th {
+    text-align: left; padding: 6px 10px;
+    font-family: var(--sans); font-weight: 700; color: var(--ink-dim);
+    border-bottom: 2px solid var(--border); font-size: 10px; text-transform: uppercase;
   }
-  .ds-tag strong {
-    color: var(--phosphor-dim); font-weight: 700;
+  .ds-table td {
+    padding: 6px 10px; border-bottom: 1px solid var(--border-light);
+    font-family: var(--mono); color: var(--ink);
   }
+  .ds-table .field-type { color: var(--cyan); font-size: 11px; }
+  .ds-table .field-name { color: var(--phosphor-dim); font-weight: 600; }
+  .ds-table .field-desc { font-family: var(--sans); font-size: 11px; color: var(--ink-muted); }
 
   @media (max-width: 900px) {
     .detail-grid { grid-template-columns: 1fr; }
@@ -149,7 +152,7 @@
 </div>
 
 <div class="detail-grid">
-  <!-- 左栏：层级概览 -->
+  <!-- 左栏：层定位 + 数据流 + 数据结构 -->
   <div class="detail-card">
     <h3>层级定位</h3>
     <div class="mini-topo" id="mini-topo"></div>
@@ -157,101 +160,135 @@
     <div class="io-flow" id="io-flow"></div>
 
     <h3>关键数据结构</h3>
-    <div class="ds-tags" id="ds-tags"></div>
+    <table class="ds-table" id="ds-table"><tbody></tbody></table>
   </div>
 
-  <!-- 右栏：操作流程 + 代码 -->
-  <div class="detail-card ops-card">
-    <h3>read() 流程中的操作步骤</h3>
-    <ol class="op-list" id="op-list"></ol>
+  <!-- 右栏：子步骤流程 + 伪代码 -->
+  <div class="detail-card">
+    <h3>sys_read() 子步骤流程（与模拟器引擎一致）</h3>
+    <ul class="substep-list" id="substep-list"></ul>
 
-    <h3 style="margin-top:20px;">核心逻辑 / 伪代码</h3>
+    <h3 style="margin-top:20px;">引擎核心逻辑 / 伪代码</h3>
     <div class="code-block" id="code-block"></div>
   </div>
 </div>
 
 <script>
-// ---- Layer data ----
+// ============================================================
+//  各层数据 — 严格对应 internal/engine/engine.go 子步骤
+// ============================================================
 var layers = {
   USER: {
-    tag: 'L0', name: '用户层 I/O 软件',
-    yPos: '10px', label: 'sys_read(fd, buf, len)',
-    input:  { text: '用户进程空间', detail: '应用程序调用 C 标准库 read(fd, buf, len)，触发 0x80 系统调用陷入内核' },
-    output: { text: 'IRP 请求包 → VFS 层', detail: '封装 {文件描述符 fd, 用户缓冲区地址 buf, 读取长度 len, 进程凭证 uid/gid} 传递给下层' },
-    ops: [
-      '用户进程调用 C 标准库函数 <code>read(fd, buf, len)</code>',
-      '触发系统调用指令 <code>syscall</code> / <code>int 0x80</code>，CPU 从用户态切换到内核态',
-      '内核入口 <code>sys_read()</code> 进行参数合法性校验：fd 是否有效？buf 指针是否在用户地址空间？len 是否合法？',
-      '若参数非法，立即返回 <code>-EINVAL</code> 或 <code>-EFAULT</code> 错误码',
-      '参数校验通过后，构造 IRP（I/O Request Packet），包含 {fd, buf, len, uid, gid}',
-      '调用 <code>vfs_read()</code> 将 IRP 传递给设备无关软件层'
+    tag: 'L0', name: '用户层 I/O 软件', color: '#0891b2',
+    summary: 'C 库调用 → fd 表查找 → access_ok() 校验 → 陷入内核',
+    input:  { text: '进程用户空间', detail: '应用程序调用 fread(buf, size, nmemb, fp)，C 库提取 fd，封装为 read(fd, buf, len) 系统调用' },
+    output: { text: '陷入内核 → VFS 层', detail: '通过 int 0x80 / sysenter 切换 Ring0，寄存器传参 (eax=3, ebx=fd, ecx=buf, edx=len)，跳转 sys_read()' },
+    substeps: [
+      { n: 1, desc: '<b>库函数调用</b>：进程调用 <code>fread(buf, size, nmemb, fp)</code> → libc 从 <code>FILE*</code> 提取 <code>fd</code>，调用 <code>read(fd, buf, len)</code> 封装函数' },
+      { n: 2, desc: '<b>fd 表查找</b>：遍历进程打开文件表 <code>fd_table[fd]</code> → <code>OpenFileEntry{path, flags, pos, inode}</code>。若 fd 无效返回 <code>EBADF</code>，若 flags=O_WRONLY 拒绝读取' },
+      { n: 3, desc: '<b>access_ok() 校验</b>：验证用户缓冲区地址 <code>buf</code> 在 <code>[0, TASK_SIZE)</code> 范围内。若越界返回 <code>EFAULT</code>，进程收到 SIGSEGV' },
+      { n: 4, desc: '<b>陷入内核</b>：参数装入寄存器 (eax=NR_read=3, ebx=fd, ecx=buf, edx=len)。执行 <code>int 0x80</code>，CPU 硬件压栈 SS/ESP/EFLAGS/CS/EIP，切换 Ring0，跳转 <code>sys_read()</code>' }
     ],
-    code: '<span class="cm">// 用户层 I/O 软件 — sys_read 入口</span>\n<span class="kw">ssize_t</span> <span class="fn">sys_read</span>(<span class="kw">int</span> fd, <span class="kw">void</span> *buf, <span class="kw">size_t</span> len) {\n    <span class="cm">// ① 参数校验</span>\n    <span class="kw">if</span> (fd < 0 || buf == NULL || len == 0)\n        <span class="kw">return</span> -EINVAL;\n    <span class="kw">if</span> (!access_ok(buf, len))\n        <span class="kw">return</span> -EFAULT;\n\n    <span class="cm">// ② 调用 VFS 层</span>\n    <span class="kw">return</span> <span class="fn">vfs_read</span>(fd, buf, len);\n}',
-    ds: ['<strong>fd_table[fd]</strong> → 进程打开文件表', '<strong>user_buf*</strong> → 用户空间缓冲区指针 (0x10000000)', '<strong>IRP</strong> {fd, buf, len, uid, gid} → 请求包结构体']
+    faults: [2, 3],
+    code: '// L0 用户层 — engine.go executeUserLayer() 4 子步骤\nfunc (e *SimulationEngine) executeUserLayer() {\n    switch e.SubStep {\n    case 1: // fread() → libc → syscall wrapper\n        desc = "fread(buf, size, nmemb, fp) → read(fd, buf, len)"\n\n    case 2: // fd 表查找：fd_table[fd] → file* → inode\n        entry := e.FdTable[findByFd(e.CurrentFd)]\n        if entry.Flags == O_WRONLY → EBADF\n\n    case 3: // access_ok(buf, len) 地址校验\n        if addr >= TASK_SIZE → EFAULT + SIGSEGV\n\n    case 4: // 陷入内核 int 0x80\n        e.nextLayer(LAYER_INDEPENDENT)\n    }\n}',
+    ds: [
+      { type: 'OpenFileEntry', field: 'Fd int32', desc: '文件描述符 (如 3)' },
+      { type: 'OpenFileEntry', field: 'FilePath string', desc: '关联的文件路径' },
+      { type: 'OpenFileEntry', field: 'Flags int32', desc: '打开标志 (0=O_RDONLY, 1=O_WRONLY)' },
+      { type: 'OpenFileEntry', field: 'FilePos int64', desc: '当前文件读写偏移量' },
+      { type: 'OpenFileEntry', field: 'InodePtr string', desc: '指向 inode 的指针标识 (如 inode:0xBEEF)' },
+      { type: 'SimulationEngine', field: 'FdTable []*OpenFileEntry', desc: '进程打开文件表 (当前含 fd=3)' },
+      { type: 'SimulationEngine', field: 'CurrentFd int32', desc: '当前 read() 操作的文件描述符' }
+    ]
   },
   VFS: {
-    tag: 'L1', name: '设备无关软件 (VFS)',
-    yPos: '90px', label: '路径解析 + 权限校验 + 缓冲分配',
-    input:  { text: 'IRP ← 用户层 I/O 软件', detail: '{文件描述符 fd, 缓冲区地址 buf, 读取长度 len, 用户凭证 uid/gid}' },
-    output: { text: 'IRP → 设备驱动程序', detail: '{inode 索引节点, 内核缓冲区 kbuf, 磁盘扇区号, 待读取字节数}' },
-    ops: [
-      '根据文件描述符 fd 查找进程的 <code>file*</code> 结构体，获取对应的 <code>inode</code> 和 <code>dentry</code>',
-      '路径解析：从 dentry 缓存或磁盘读取目录项，确定文件在文件系统中的准确位置',
-      'ACL 权限校验：检查当前进程的 UID/GID 是否对该 inode 拥有读权限（<code>acl_check_read()</code>）',
-      '路径穿越防御：检测路径中是否包含 <code>../</code> 等越权跳转，若检测到则拒绝并返回 <code>-EPERM</code>',
-      '根据 <code>use_double_buffer</code> 配置，分配内核缓冲区（双缓冲模式：乒乓切换 A/B；单缓冲模式：仅使用 A）',
-      '组装新的 IRP，包含 {inode, kernel_buffer, sector_offset, byte_count}，传递给设备驱动程序'
+    tag: 'L1', name: '设备无关软件 (VFS)', color: '#0891b2',
+    summary: '路径解析 → ACL 校验 → 页缓存查找 → 缓冲分配 → IRP 下发',
+    input:  { text: 'IRP ← 用户层', detail: '系统调用参数 {fd, buf, len} + 进程凭证 {uid, gid}，由 sys_read() 传递至 vfs_read()' },
+    output: { text: 'IRP → 驱动层 (或直接返回)', detail: 'IRP_READ {Dev:Disk0, Len, Buf}。若页缓存命中则直接 copy_to_user() 返回，跳过磁盘 I/O' },
+    substeps: [
+      { n: 1, desc: '<b>路径解析</b>：VFS 将路径 <code>"/home/user1/notes.txt"</code> 解析为 <code>dentry → inode</code>，遍历目录项缓存 (dcache)，定位文件在文件系统中的准确位置' },
+      { n: 2, desc: '<b>ACL 权限校验</b>：4 级管线 — ①路径穿越检测 ②文件存在检查 ③敏感文件检查 (<code>/etc/shadow</code>) ④Unix 权限位 (UID/GID 匹配 owner/group/other)。任意一级失败返回对应错误码' },
+      { n: 3, desc: '<b>页缓存查找</b>：检查 <code>PageCache[filePath]</code> 是否存在。命中 → 直接从 RAM 拷贝数据到用户缓冲区，<code>IsFinished=true</code>，跳过 L2/L3/L4。未命中 → 分配新页框，继续下发' },
+      { n: 4, desc: '<b>内核缓冲分配</b>：根据 <code>UseDoubleBuffer</code> 配置分配 单缓冲区 或 双缓冲乒乓 A/B（共 <code>TotalChunks × 4096</code> 字节）' },
+      { n: 5, desc: '<b>IRP 构造与下发</b>：构造 <code>IRP_READ → Dev:Disk0, Len:N, Buf:0xNNNN</code>，沿设备栈提交至驱动程序层' }
     ],
-    code: '<span class="cm">// 设备无关软件 (VFS) — 核心校验与缓冲管理</span>\n<span class="kw">ssize_t</span> <span class="fn">vfs_read</span>(<span class="kw">struct</span> file *filp, <span class="kw">char</span> *buf, <span class="kw">size_t</span> len) {\n    <span class="kw">struct</span> inode *inode = filp->f_inode;\n\n    <span class="cm">// ① 权限校验</span>\n    <span class="kw">if</span> (!<span class="fn">acl_check_read</span>(inode, current_uid(), current_gid()))\n        <span class="kw">return</span> -EACCES;\n\n    <span class="cm">// ② 路径穿越防御</span>\n    <span class="kw">if</span> (<span class="fn">has_path_traversal</span>(filp->f_path))\n        <span class="kw">return</span> -EPERM;\n\n    <span class="cm">// ③ 分配内核缓冲区 (双缓冲乒乓)</span>\n    <span class="kw">struct</span> kbuf *kb = <span class="fn">dblbuf_alloc</span>(len);\n    kb->active_write = (kb->active_write + 1) % 2;\n\n    <span class="cm">// ④ 下发到驱动层</span>\n    <span class="kw">return</span> <span class="fn">drv_read</span>(filp, kb, len);\n}',
-    ds: ['<strong>file*</strong> → 文件对象 (含读写偏移)', '<strong>inode</strong> → 索引节点 (权限位/文件大小)', '<strong>dentry</strong> → 目录项缓存 (路径→inode映射)', '<strong>kernel_buf[2]</strong> → 乒乓缓冲 A/B', '<strong>ACL mask</strong> → uid/gid 权限位掩码', '<strong>乒乓控制块</strong> → active_write / active_read']
+    faults: [2],
+    code: '// L1 VFS 层 — engine.go executeIndependentLayer() 5 子步骤\nfunc (e *SimulationEngine) executeIndependentLayer() {\n    switch e.SubStep {\n    case 1: // 路径解析 dentry → inode\n        desc = "VFS 将路径解析为 dentry → inode"\n\n    case 2: // ACL 四阶段管线校验\n        ValidateFileAccess(userCtx, filePath)\n        // 路径穿越 → EPERM / 敏感文件 → EACCES /\n        // 不存在 → ENOENT / 权限位 → EACCES\n\n    case 3: // 页缓存查找 (Page Cache)\n        if cached, ok := PageCache[filePath]; ok {\n            UserBufferData = cached[:bytesToRead]\n            IsFinished = true  // 跳过磁盘 I/O!\n        } else {\n            CacheMissed = true\n        }\n\n    case 4: // 缓冲分配 (单/双)\n        desc = "单/双缓冲分配"\n\n    case 5: // IRP 构造 → 驱动层\n        IRP = "IRP_READ → Dev:Disk0, Len, Buf"\n        nextLayer(LAYER_DRIVER)\n    }\n}',
+    ds: [
+      { type: 'SimulationEngine', field: 'PageCache map[string][]byte', desc: '内核文件页缓存 (key=filePath)' },
+      { type: 'SimulationEngine', field: 'CacheMissed bool', desc: '当前读是否缓存未命中 (ISR 完成后回写)' },
+      { type: 'Config', field: 'UsePageCache bool', desc: '是否启用页缓存功能' },
+      { type: 'Config', field: 'UseDoubleBuffer bool', desc: '双缓冲乒乓 (true) / 单缓冲 (false)' },
+      { type: 'Snapshot', field: 'TotalChunks int32', desc: '总数据块数 = ceil(bytesToRead/4096)' },
+      { type: 'MemoryView', field: 'CachedPages uint32', desc: '缓存中的总页框数' },
+      { type: 'MemoryView', field: 'CacheHit bool', desc: '当前读是否页缓存命中' }
+    ]
   },
   DRV: {
-    tag: 'L2', name: '设备驱动程序',
-    yPos: '170px', label: '构造 IRP + 写寄存器 + 阻塞等待',
-    input:  { text: 'IRP ← 设备无关软件', detail: '{inode 索引节点, 内核缓冲区 kbuf, 扇区偏移量, 字节计数}' },
-    output: { text: '硬件指令 → 磁盘控制器', detail: 'CMD_READ 写入命令寄存器 + 扇区地址写入地址寄存器 → 进程阻塞等待中断' },
-    ops: [
-      '接收 VFS 层下发的 IRP，提取 inode、内核缓冲区指针、扇区偏移量、待读取字节数',
-      '将逻辑 I/O 请求转换为硬件可执行的指令：<code>CMD_READ</code> 写入命令寄存器 + 扇区地址写入地址寄存器',
-      '调用 <code>outb()</code> 将指令写入设备寄存器（I/O 端口映射或 MMIO）',
-      '将当前进程状态设置为 <code>TASK_BLOCKED</code>，加入设备等待队列',
-      '调用 <code>schedule()</code> 触发进程调度，CPU 让出给其他就绪进程',
-      '（等待中断唤醒后）从内核缓冲区拷贝数据，继续执行返回逻辑'
+    tag: 'L2', name: '设备驱动程序', color: '#d97706',
+    summary: 'IRP 解析 → 寄存器编程 (可 EAGAIN 重试) → 进程阻塞',
+    input:  { text: 'IRP ← VFS 层', detail: 'IRP_READ {Dev:Disk0, Len:N, Buf:0xNNNN}，内核缓冲区已分配就绪' },
+    output: { text: '硬件指令 → 磁盘控制器', detail: 'CMD_REG=0x01 READ_SECTOR, STS_REG=DEVICE_BUSY。进程进入 BLOCKED 状态，CPU 调度其他进程' },
+    substeps: [
+      { n: 1, desc: '<b>IRP 解析</b>：提取操作类型 (READ)、目标设备 (Disk0)、数据量 (单缓冲全量 / 双缓冲 chunk N/M × 4096 字节)' },
+      { n: 2, desc: '<b>寄存器编程 + EAGAIN 重试</b>：通过 MMIO 写入 <code>CMD_REG=0x01: READ_SECTOR</code>, <code>STS_REG=DEVICE_BUSY</code>。若设备忙 (EAGAIN)，重试最多 3 次，每次重试重新写入寄存器' },
+      { n: 3, desc: '<b>进程阻塞</b>：进程进入 <code>BLOCKED</code> 状态，等待原因="等待磁盘 I/O 完成 (DMA + IRQ)"，CPU 调度器切换到其他就绪进程' }
     ],
-    code: '<span class="cm">// 设备驱动程序 — 硬件指令下发与进程阻塞</span>\n<span class="kw">ssize_t</span> <span class="fn">drv_read</span>(<span class="kw">struct</span> file *filp, <span class="kw">struct</span> kbuf *kb, <span class="kw">size_t</span> len) {\n    <span class="cm">// ① 构造 I/O 请求包</span>\n    <span class="kw">struct</span> irp *req = <span class="fn">irp_alloc</span>(filp, kb, len);\n\n    <span class="cm">// ② 写设备寄存器</span>\n    <span class="fn">outb</span>(CMD_READ,  DEV_CMD_REG);\n    <span class="fn">outb</span>(req->sector, DEV_ADDR_REG);\n    <span class="fn">outb</span>(req->count,  DEV_COUNT_REG);\n\n    <span class="cm">// ③ 进程阻塞，等待 I/O 完成</span>\n    <span class="fn">set_current_state</span>(TASK_BLOCKED);\n    <span class="fn">schedule</span>();  <span class="cm">// 让出 CPU</span>\n\n    <span class="cm">// ④ 被中断唤醒后：拷贝数据到用户缓冲区</span>\n    <span class="kw">return</span> <span class="fn">copy_to_user</span>(buf, kb->data, len);\n}',
-    ds: ['<strong>IRP</strong> → I/O 请求包 (含文件/缓冲区/字节数)', '<strong>设备寄存器</strong> → CMD_REG / ADDR_REG / COUNT_REG', '<strong>wait_queue</strong> → 阻塞进程等待队列', '<strong>DMA descriptor</strong> → DMA 传输描述符 (源/目标/长度)']
-  },
-  INT: {
-    tag: 'L3', name: '中断处理程序 (ISR)',
-    yPos: '230px', label: 'IRQ 响应 + 唤醒进程 + 数据拷贝',
-    input:  { text: 'IRQ 中断信号 ← 磁盘控制器', detail: '硬件 DMA 完成后通过中断控制器发送 IRQ_DISK 信号线，CPU 查 IDT 跳转 ISR 入口' },
-    output: { text: '唤醒信号 → 驱动进程', detail: 'wake_up_process(driver_task) 将阻塞的驱动进程从 BLOCKED 置为 READY，调度后继续执行拷贝' },
-    ops: [
-      '硬件完成 DMA 传输后，通过中断控制器（PIC/APIC）向 CPU 发送 IRQ 信号',
-      'CPU 暂停当前执行的进程，根据中断向量号查 IDT（中断描述符表），跳转到对应的 ISR 入口',
-      'ISR 读取设备状态寄存器（<code>inb(DEV_STS_REG)</code>），确认 DMA 传输是否成功',
-      '若状态为 STS_DATA_READY，从 DMA 缓冲区读取数据写入内核缓冲区 kbuf',
-      '调用 <code>wake_up_process()</code> 唤醒在驱动层阻塞等待的进程（状态从 BLOCKED → READY）',
-      'ISR 返回，CPU 恢复执行被中断的进程；调度器稍后将唤醒的驱动进程投入运行'
-    ],
-    code: '<span class="cm">// 中断处理程序 (ISR) — 异步响应与进程唤醒</span>\n<span class="kw">irqreturn_t</span> <span class="fn">disk_isr</span>(<span class="kw">int</span> irq, <span class="kw">void</span> *dev) {\n    <span class="cm">// ① 读取硬件状态</span>\n    <span class="kw">uint8_t</span> status = <span class="fn">inb</span>(DEV_STS_REG);\n    <span class="kw">if</span> (!(status & STS_DATA_READY))\n        <span class="kw">return</span> IRQ_NONE;\n\n    <span class="cm">// ② 从 DMA 缓冲区拷贝到内核缓冲区</span>\n    <span class="kw">uint8_t</span> *dma = <span class="fn">dma_get_buffer</span>();\n    <span class="fn">memcpy</span>(kbuf->data, dma, kbuf->len);\n\n    <span class="cm">// ③ 唤醒驱动层阻塞的进程</span>\n    <span class="fn">wake_up_process</span>(driver_task);\n    <span class="kw">return</span> IRQ_HANDLED;\n}',
-    ds: ['<strong>IDT</strong> → 中断描述符表 (向量号→ISR 入口地址)', '<strong>task_struct*</strong> → 被阻塞的驱动进程描述符', '<strong>DMA buffer</strong> → DMA 控制器管理的物理内存区域', '<strong>设备状态寄存器</strong> → STS_REG (STS_DATA_READY 标志位)', '<strong>中断向量号</strong> → IRQ_DISK = 14 (主 ATA 控制器)']
+    faults: [2],
+    code: '// L2 驱动层 — engine.go executeDriverLayer() 3 子步骤\nfunc (e *SimulationEngine) executeDriverLayer() {\n    switch e.SubStep {\n    case 1: // IRP 解析\n        desc = "提取 IRP: READ, Disk0, len"\n\n    case 2: // 寄存器编程 + EAGAIN 重试\n        if fault == EAGAIN && retryCount < retryMax:\n            retryCount++\n            desc = "设备忙 重试 {retryCount}/{retryMax}"\n            e.SubStep = 1  // 保持当前子步骤\n            return\n\n        // 重试耗尽：正常编程\n        CMD_REG = "0x01: READ_SECTOR"\n        STS_REG = "DEVICE_BUSY"\n        retryCount = 0\n\n    case 3: // 进程阻塞\n        process.state = BLOCKED\n        nextLayer(LAYER_HARDWARE)\n    }\n}',
+    ds: [
+      { type: 'SimulationEngine', field: 'RetryCount uint32', desc: 'EAGAIN 当前重试次数' },
+      { type: 'SimulationEngine', field: 'RetryMax uint32', desc: '最大重试次数 (默认 3)' },
+      { type: 'SimulationEngine', field: 'InjectedFault FaultType', desc: '注入的故障类型 (含 FAULT_EAGAIN=6)' },
+      { type: 'HardwareView', field: 'CmdRegister string', desc: '命令寄存器 (如 0x01: READ_SECTOR)' },
+      { type: 'HardwareView', field: 'StatusRegister string', desc: '状态寄存器 (DEVICE_BUSY / READY)' },
+      { type: 'ProcessBlock', field: 'State enum', desc: '进程状态: RUNNING(0) / BLOCKED(1) / READY(2)' }
+    ]
   },
   HW: {
-    tag: 'L4', name: '硬件层 (磁盘控制器)',
-    yPos: '280px', label: 'DMA 数据读取 + IRQ 发送',
-    input:  { text: '设备指令 ← 驱动程序', detail: '驱动层通过 outb() 将 CMD_READ + 扇区 LBA 地址写入设备 I/O 端口寄存器' },
-    output: { text: 'IRQ 中断信号 → ISR', detail: 'DMA 传输完成 → 状态寄存器置 STS_DATA_READY → 中断控制器拉高 IRQ_DISK 线 → CPU 响应中断' },
-    ops: [
-      '设备控制器从命令寄存器读取驱动层写入的 <code>CMD_READ</code> 指令',
-      '解析扇区地址，启动磁头寻道，移动到目标扇区位置',
-      '启动 DMA（直接内存访问）引擎：磁盘数据直接通过 DMA 写入系统内存，无需 CPU 逐字节搬运',
-      'DMA 传输过程中 CPU 可继续执行其他任务（DMA 控制器独立工作）',
-      'DMA 传输完成后，磁盘控制器将状态寄存器设置为 <code>STS_DATA_READY</code>',
-      '通过中断控制器向 CPU 发送 <code>IRQ_DISK</code> 中断信号，通知 CPU 数据已就绪'
+    tag: 'L4', name: '硬件层 (磁盘控制器)', color: '#d97706',
+    summary: 'DMA 初始化 → 磁盘扇区读取/DMA 传输 → 硬件中断 IRQ',
+    input:  { text: '设备指令 ← 驱动程序', detail: 'CMD_REG=READ_SECTOR, 扇区地址, DMA 目标缓冲区地址由驱动层写入设备端口' },
+    output: { text: 'IRQ↑ 中断信号 → ISR', detail: 'DMA 传输完成 → STS_REG=DATA_READY → 中断控制器拉高 IRQ#14 → CPU 查 IDT 跳转 ISR 入口' },
+    substeps: [
+      { n: 1, desc: '<b>DMA 控制器初始化</b>：编程 DMA 寄存器 — <code>源地址=磁盘扇区</code>, <code>目标=内核缓冲区</code>, <code>传输字节数</code>。DMA 控制器接管总线，CPU 可继续执行。状态: SETUP' },
+      { n: 2, desc: '<b>磁盘读取 + DMA 传输</b>：磁头寻道，扇区数据通过 DMA 直接写入内核缓冲区 (无需 CPU 逐字节搬运)。数据写入 DATA_REG。状态: TRANSFERRING → DONE。<b>若硬件超时 (EIO)</b>：DMA 状态 → ERROR，STS_REG=DEVICE_ERROR' },
+      { n: 3, desc: '<b>硬件中断 IRQ 发出</b>：磁盘控制器通过 IRQ 线 (IRQ#14) 向 CPU 发出中断请求。PIC/APIC 将中断向量号传递给 CPU，触发中断处理流程' }
     ],
-    code: '<span class="cm">// 硬件层 — 磁盘控制器逻辑 (硬件描述)</span>\n<span class="kw">void</span> <span class="fn">disk_controller</span>(<span class="kw">void</span>) {\n    <span class="cm">// ① 读取命令寄存器</span>\n    <span class="kw">uint8_t</span> cmd = DEV_CMD_REG;\n    <span class="kw">if</span> (cmd != CMD_READ) <span class="kw">return</span>;\n\n    <span class="cm">// ② DMA 读取磁盘扇区</span>\n    <span class="kw">uint32_t</span> sector = DEV_ADDR_REG;\n    <span class="kw">uint8_t</span> *dma_buf = <span class="fn">dma_alloc</span>(SECTOR_SIZE);\n    <span class="fn">disk_read_sector</span>(sector, dma_buf);\n\n    <span class="cm">// ③ 设置完成状态 + 发送中断</span>\n    DEV_STS_REG = STS_DATA_READY;\n    <span class="fn">send_irq</span>(IRQ_DISK);\n}',
-    ds: ['<strong>CMD_REG</strong> → 命令寄存器 (CMD_READ / CMD_WRITE)', '<strong>STS_REG</strong> → 状态寄存器 (BUSY / DATA_READY / ERROR)', '<strong>DATA_REG</strong> → 数据寄存器 (DMA 目标)', '<strong>DMA 控制器</strong> → 8237 或板载 DMA 引擎', '<strong>PIC/APIC</strong> → 可编程中断控制器 (IRQ 路由到 CPU)']
+    faults: [2],
+    code: '// L4 硬件层 — engine.go executeHardwareLayer() 3 子步骤\nfunc (e *SimulationEngine) executeHardwareLayer() {\n    switch e.SubStep {\n    case 1: // DMA 控制器初始化\n        DmaSource   = "0x0400: Disk0 Sector"\n        DmaDest     = "0xBEEF1000: Kernel Buf1"\n        DmaCount    = bytesToRead\n        DmaStatus   = "SETUP"\n\n    case 2: // 磁盘读取 + DMA 传输\n        if fault == EIO:\n            DmaStatus = "ERROR"\n            IsFinished = true\n            return\n\n        DataRegister = generated_data[:actualSize]\n        DmaStatus    = "TRANSFERRING" → "DONE"\n        STS_REG      = "DATA_READY"\n\n    case 3: // 硬件中断 IRQ#14\n        nextLayer(LAYER_INTERRUPT)\n    }\n}',
+    ds: [
+      { type: 'HardwareView', field: 'DmaSource string', desc: 'DMA 源地址 (如 0x0400: Disk0 Sector)' },
+      { type: 'HardwareView', field: 'DmaDestination string', desc: 'DMA 目标地址 (如 0xBEEF1000: Kernel Buf1)' },
+      { type: 'HardwareView', field: 'DmaCount uint32', desc: 'DMA 传输字节数' },
+      { type: 'HardwareView', field: 'DmaStatus string', desc: 'IDLE → SETUP → TRANSFERRING → DONE / ERROR' },
+      { type: 'HardwareView', field: 'CmdRegister string', desc: '命令寄存器 (READ_SECTOR)' },
+      { type: 'HardwareView', field: 'StatusRegister string', desc: '状态寄存器 (READY/BUSY/ERROR/DATA_READY)' },
+      { type: 'HardwareView', field: 'DataRegister []byte', desc: '硬件数据寄存器 (DMA 目的)' }
+    ]
+  },
+  INT: {
+    tag: 'L3', name: '中断处理程序 (ISR)', color: '#6366f1',
+    summary: 'ISR 接管 → copy_to_user 数据拷贝 → 乒乓切换/完成 + 缓存回写',
+    input:  { text: 'IRQ 中断 ← 硬件层', detail: 'CPU 响应 IRQ#14，硬件自动压栈 (EIP/CS/EFLAGS)，查 IDT 跳转 ISR 入口，保存寄存器上下文' },
+    output: { text: '数据返回 → 用户空间', detail: 'copy_to_user() 将内核缓冲区数据拷贝至用户空间 buf=0x10000000。进程恢复 RUNNING，ISR 执行 iret 返回用户态' },
+    substeps: [
+      { n: 1, desc: '<b>ISR 接管</b>：CPU 响应 IRQ#14，硬件自动压栈 (EIP/CS/EFLAGS)。ISR 入口保存寄存器上下文，读取中断源识别为磁盘控制器' },
+      { n: 2, desc: '<b>数据拷贝</b>：① 硬件 DATA_REG → 内核缓冲区 (ActiveWriteBuffer) ② <code>copy_to_user()</code> → 用户缓冲区 <code>0x10000000</code>。累计已接收字节数，清空硬件 DATA_REG，STS_REG 复位 READY' },
+      { n: 3, desc: '<b>乒乓切换 / I/O 完成</b>：<b>若还有未读 chunk</b>：缓冲区切换 (A↔B)，编程下一块 DMA，进程再次阻塞，回到 L2 驱动层。<b>若全部完成</b>：进程恢复 RUNNING，<code>sys_read()</code> 返回字节数，更新文件偏移量，<b>页缓存回写</b>（将数据存入 PageCache），IsFinished=true' }
+    ],
+    faults: [],
+    code: '// L3 中断层 — engine.go executeInterruptLayer() 3 子步骤\nfunc (e *SimulationEngine) executeInterruptLayer() {\n    switch e.SubStep {\n    case 1: // ISR 接管 + 上下文保存\n        desc = "CPU 响应 IRQ#14, 压栈, ISR 入口"\n\n    case 2: // 数据拷贝 (hw reg → kernel buf → user buf)\n        KernelBuf[activeWrite] = HardwareState.DataRegister\n        UserBuf = append(UserBuf, KernelBuf[activeWrite]...)\n        DataRegister = []byte{}  // 清空硬件寄存器\n\n    case 3: // 乒乓切换 或 I/O 完成\n        if UseDoubleBuffer && chunk+1 < totalChunks:\n            chunk++\n            // 乒乓: 写缓冲 ↔ 读缓冲\n            swap(ActiveWriteBuffer, ActiveReadBuffer)\n            nextLayer(LAYER_DRIVER)  // 回到 L2 继续\n        else:\n            // I/O 完成\n            ProcessState = RUNNING\n            FilePos += bytesRead     // 更新文件偏移量\n            if CacheMissed:          // 页缓存回写\n                PageCache[filePath] = UserBuf\n            IsFinished = true\n    }\n}',
+    ds: [
+      { type: 'SimulationEngine', field: 'ActiveWriteBuffer int32', desc: '乒乓写入目标 (1=A, 2=B)' },
+      { type: 'SimulationEngine', field: 'ActiveReadBuffer int32', desc: '乒乓读取源' },
+      { type: 'SimulationEngine', field: 'CurrentChunk int32', desc: '当前数据块索引 (0-based)' },
+      { type: 'MemoryView', field: 'KernelBuffer_1Data []byte', desc: '内核缓冲区 A (4KB/块)' },
+      { type: 'MemoryView', field: 'KernelBuffer_2Data []byte', desc: '内核缓冲区 B' },
+      { type: 'MemoryView', field: 'UserBufferData []byte', desc: '用户态接收缓冲区 (累积)' },
+      { type: 'OpenFileEntry', field: 'FilePos int64', desc: '文件偏移量 (模拟 lseek 行为)' }
+    ]
   }
 };
 
@@ -261,34 +298,84 @@ var layerKey = params.get('layer') || 'USER';
 if (!layers[layerKey]) layerKey = 'USER';
 var data = layers[layerKey];
 
-document.getElementById('detail-title').textContent = data.tag + ' ' + data.name;
+document.getElementById('detail-title').textContent = data.tag + ' ' + data.name + ' — ' + data.summary;
 
-// Mini topology
+// ---- Mini topology with connecting arrows ----
 var mini = document.getElementById('mini-topo');
-var allKeys = ['USER', 'VFS', 'DRV', 'INT', 'HW'];
-mini.innerHTML = allKeys.map(function(k) {
-  var l = layers[k];
-  var hl = (k === layerKey) ? ' highlight' : '';
-  return '<div class="mini-layer' + hl + '" style="top:' + l.yPos + '">' + l.tag + ' ' + l.name + '</div>';
+var allKeys = ['USER', 'VFS', 'DRV', 'HW', 'INT'];
+var positions = {
+  USER: { top: 8,  height: 40, color: '#0891b2' },
+  VFS:  { top: 58, height: 40, color: '#0891b2' },
+  DRV:  { top: 108, height: 40, color: '#d97706' },
+  HW:   { top: 158, height: 40, color: '#d97706' },
+  INT:  { top: 208, height: 40, color: '#6366f1' }
+};
+
+// SVG arrows
+var arrowLines = '';
+var prevPos = null;
+allKeys.forEach(function(k) {
+  var pos = positions[k];
+  if (prevPos) {
+    var y1 = prevPos.top + prevPos.height;
+    var y2 = pos.top;
+    var midY = (y1 + y2) / 2;
+    var dir = (k === 'INT') ? '↑' : '↓';
+    arrowLines += '<line x1="360" y1="' + y1 + '" x2="360" y2="' + y2 + '" stroke="' + prevPos.color + '" stroke-width="1.5" stroke-dasharray="' + (k === 'INT' ? '5,3' : '') + '" opacity="0.5"/>';
+    if (k !== 'INT') {
+      arrowLines += '<polygon points="356,' + (y2-5) + ' 364,' + (y2-5) + ' 360,' + y2 + '" fill="' + prevPos.color + '" opacity="0.5"/>';
+    }
+    if (k === 'INT') {
+      arrowLines += '<polygon points="356,' + (y1+5) + ' 364,' + (y1+5) + ' 360,' + y1 + '" fill="' + positions.HW.color + '" opacity="0.5"/>';
+    }
+    arrowLines += '<text x="375" y="' + (midY+4) + '" font-size="9" fill="' + prevPos.color + '" font-family="JetBrains Mono" opacity="0.6">' + (k === 'INT' ? 'IRQ↑' : 'IRP↓') + '</text>';
+  }
+  prevPos = pos;
+});
+// Return path DATA↑
+arrowLines += '<line x1="390" y1="' + (positions.INT.top) + '" x2="390" y2="' + (positions.VFS.top + positions.VFS.height) + '" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>';
+arrowLines += '<text x="405" y="' + ((positions.INT.top + positions.VFS.top + positions.VFS.height) / 2 + 4) + '" font-size="9" fill="#6366f1" font-family="JetBrains Mono" opacity="0.5">DATA↑</text>';
+
+mini.innerHTML = '<svg viewBox="0 0 720 260">' + arrowLines + '</svg>' +
+  allKeys.map(function(k) {
+    var l = layers[k];
+    var pos = positions[k];
+    var hl = (k === layerKey) ? ' highlight' : '';
+    return '<div class="mini-layer' + hl + '" style="top:' + pos.top + 'px; border-left: 3px solid ' + pos.color + ';">' +
+      '<span class="tag">' + l.tag + '</span>' + l.name + ' — ' + l.summary.substring(0, 20) + '…' +
+    '</div>';
+  }).join('');
+
+// ---- IO flow ----
+var flow = document.getElementById('io-flow');
+flow.innerHTML =
+  '<div class="io-row"><span class="io-tag in">输入</span><span style="font-weight:600;">' + data.input.text + '</span></div>' +
+  '<div class="io-row"><span class="io-tag in" style="visibility:hidden">输入</span><span class="detail">' + data.input.detail + '</span></div>' +
+  '<div class="io-row"><span class="io-tag out">输出</span><span style="font-weight:600;">' + data.output.text + '</span></div>' +
+  '<div class="io-row"><span class="io-tag out" style="visibility:hidden">输出</span><span class="detail">' + data.output.detail + '</span></div>';
+
+// ---- Sub-step list with fault markers ----
+var substepList = document.getElementById('substep-list');
+substepList.innerHTML = data.substeps.map(function(s) {
+  var isFault = data.faults.indexOf(s.n) !== -1;
+  return '<li' + (isFault ? ' class="fault"' : '') + '>' +
+    '<span class="substep-num">' + s.n + '</span>' +
+    '<span class="substep-desc">' + s.desc + (isFault ? '<span class="badge-fault">故障拦截点</span>' : '') + '</span>' +
+  '</li>';
 }).join('');
 
-// IO flow
-var flow = document.getElementById('io-flow');
-flow.innerHTML = '<div class="io-row"><span class="io-tag in">输入</span><span style="font-weight:600;">' + data.input.text + '</span></div>'
-  + '<div class="io-row"><span class="io-tag in" style="visibility:hidden">输入</span><span class="detail">' + data.input.detail + '</span></div>'
-  + '<div class="io-row"><span class="io-tag out">输出</span><span style="font-weight:600;">' + data.output.text + '</span></div>'
-  + '<div class="io-row"><span class="io-tag out" style="visibility:hidden">输出</span><span class="detail">' + data.output.detail + '</span></div>';
-
-// Operations
-var opList = document.getElementById('op-list');
-opList.innerHTML = data.ops.map(function(op) { return '<li>' + op + '</li>'; }).join('');
-
-// Code
+// ---- Pseudo-code ----
 document.getElementById('code-block').innerHTML = '<pre>' + data.code + '</pre>';
 
-// Data structures
-var dsTags = document.getElementById('ds-tags');
-dsTags.innerHTML = data.ds.map(function(d) { return '<span class="ds-tag">' + d + '</span>'; }).join('');
+// ---- Data structures table ----
+var tbody = document.querySelector('#ds-table tbody');
+tbody.innerHTML = data.ds.map(function(d) {
+  return '<tr>' +
+    '<td class="field-type">' + d.type + '</td>' +
+    '<td class="field-name">' + d.field + '</td>' +
+    '<td class="field-desc">' + d.desc + '</td>' +
+  '</tr>';
+}).join('');
 </script>
 </body>
 </html>

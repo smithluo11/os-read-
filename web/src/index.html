@@ -95,6 +95,7 @@
 <header class="top-control-bar">
   <div class="ctrl-group ctrl-connect">
     <span class="logo">IO::SIM</span>
+    <span id="phase-badge" class="phase-badge header-badge">⏳ 等待初始化</span>
     <input type="text" id="cfg-host" class="inp" value="" placeholder="后端地址 (留空=当前域名)">
     <button id="btn-init" class="btn btn-primary">● 连接并初始化</button>
     <span id="conn-status" class="conn-status disconnected">未连接</span>
@@ -175,8 +176,6 @@
         <foreignObject x="400" y="150" width="120" height="24"><div class="conn-label" id="data-label" style="color:var(--cobalt);">DATA ↑</div></foreignObject>
       </svg>
 
-      <!-- 阶段指示器 -->
-      <div id="phase-badge" class="phase-badge" style="position:absolute; top:-70px; left:50%; transform:translateX(-50%); z-index:30;">⏳ 等待初始化</div>
 
       <div class="layer-card" id="layer-USER" style="position:absolute; top:0px; left:50%; transform:translateX(-50%); width:500px;">
         <span class="layer-tag">L0</span><span class="layer-name">用户层 I/O 软件</span><span class="layer-sub">sys_read(fd, buf, len)</span><span class="layer-steps"></span>

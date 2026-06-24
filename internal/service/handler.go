@@ -49,8 +49,22 @@ func (s *IOSimulationService) StreamSimulation(stream pb.IOSimulationEngine_Stre
 			log.Printf("用户上下文: uid=%d gid=%d username=%s home=%s",
 				userCtx.Uid, userCtx.Gid, userCtx.Username, userCtx.HomeDir)
 
+			// 跨 INIT 持久化页缓存：保存旧引擎的缓存数据
+			var oldPageCache map[string][]byte
+			if simEngine != nil && simEngine.PageCache != nil && len(simEngine.PageCache) > 0 {
+				oldPageCache = simEngine.PageCache
+				log.Printf("保留旧引擎的页缓存: %d 页", len(oldPageCache))
+			}
+
 			// 实例化新的状态机
 			simEngine = engine.NewEngine(req.Config, userCtx)
+
+			// 恢复页缓存：旧缓存存在且新配置也启用页缓存时继承
+			if oldPageCache != nil && req.Config.UsePageCache {
+				simEngine.PageCache = oldPageCache
+				log.Printf("页缓存已继承到新引擎: %d 页", len(simEngine.PageCache))
+			}
+
 			// 把初始状态推给前端
 			if err := stream.Send(simEngine.Snapshot); err != nil {
 				return err
@@ -62,11 +76,17 @@ func (s *IOSimulationService) StreamSimulation(stream pb.IOSimulationEngine_Stre
 				return fmt.Errorf("请先发送 ACTION_INIT 初始化系统")
 			}
 
+			// 已经完成则跳过，避免重复发送同一完成态
+			if simEngine.Snapshot.IsFinished {
+				log.Printf("模拟已结束，忽略多余的 STEP 请求")
+				continue
+			}
+
 			// 推动状态机走一步
 			snapshot, err := simEngine.NextStep()
 			if err != nil {
 				log.Printf("状态机执行完毕或出错: %v", err)
-				// 即使出错也把最后的状态推过去
+				// 发送最终快照 (首次完成)
 				if sendErr := stream.Send(simEngine.Snapshot); sendErr != nil {
 					log.Printf("发送最终快照失败: %v", sendErr)
 					return sendErr

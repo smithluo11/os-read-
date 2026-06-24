@@ -159,6 +159,7 @@ L3 中断处理程序 (ISR)    [3 步] ISR 接管/上下文保存 → copy_to_us
 │   └── bundle.js                   # google-protobuf + pb 打包
 ├── DESIGN.md                       # 设计文档
 ├── API.md                          # gRPC API 参考文档
+├── TEST.md                         # 完整功能测试手册 (22 个测试场景)
 └── README.md
 ```
 
