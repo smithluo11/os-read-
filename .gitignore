@@ -7,7 +7,7 @@ bin/
 *.dylib
 io-simulator-backend
 io-sim-server
-server
+/server
 
 # 团队 IDE / 编辑器配置
 .idea/
