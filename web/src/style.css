@@ -654,8 +654,17 @@ select.sel {
     border: 1px solid var(--cyan);
 }
 
-#err-msg.error {
+.err-fault {
     color: var(--red);
+    font-weight: 700;
+    animation: err-blink 0.6s ease-in-out 2;
+}
+@keyframes err-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+.err-success {
+    color: var(--phosphor);
     font-weight: 700;
 }
 

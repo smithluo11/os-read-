@@ -47,11 +47,11 @@ function triggerInit() {
         : window.IOSim.newUserContext(1000, 1000, 'user1', '/home/user1');
 
     const cmd = window.IOSim.newInitCommand(config, userCtx);
+    send(cmd); // INIT 先发，确保引擎已创建
     const faultVal = parseInt(cfgFault.value);
     if (faultVal > 0) {
-        send(window.IOSim.newInjectFaultCommand(faultVal));
+        send(window.IOSim.newInjectFaultCommand(faultVal)); // 再注入故障
     }
-    send(cmd);
     log(`INIT: ${cfgPath.value} | user=${selUser.value} | dblbuf=${cfgDblBuf.checked}`);
 }
 
@@ -200,6 +200,19 @@ function onSnapshot(snapMsg) {
     if (snap.hardwareState) {
         $('hw-cmd').textContent = `CMD: ${snap.hardwareState.cmdRegister || 'NO_OP'}`;
         $('hw-status').textContent = `STS: ${snap.hardwareState.statusRegister || 'READY'}`;
+    }
+
+    // 内核差错控制台：根据快照状态更新
+    const errEl = $('err-msg');
+    if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') {
+        errEl.textContent = snap.finalErrorCode;
+        errEl.className = 'err-fault';
+    } else if (snap.isFinished) {
+        errEl.textContent = 'SUCCESS';
+        errEl.className = 'err-success';
+    } else if (snap.finalErrorCode && snap.finalErrorCode !== 'SUCCESS') {
+        errEl.textContent = snap.finalErrorCode;
+        errEl.className = 'err-fault';
     }
 
     if (snap.isFinished && autoTimer) clearAutoPlay();
