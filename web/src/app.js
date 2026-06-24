@@ -75,11 +75,17 @@ function triggerInit() {
     log(`INIT: ${cfgPath.value} | user=${selUser.value} | dblbuf=${cfgDblBuf.checked}`);
 }
 
+function updateInitButton() {
+    const connected = streamHandle && connStatus.textContent.includes('Connected');
+    btnInit.textContent = connected ? '↻ 重新初始化' : '● 连接并初始化';
+}
+
 function connectAndInit() {
     const host = cfgHost.value.trim() || window.location.origin;
     
-    // 如果已经连接，直接发起初始化
+    // 如果已经连接，直接发起重新初始化（重置按钮功能）
     if (streamHandle && connStatus.textContent.includes('Connected')) {
+        log('重新初始化模拟...');
         triggerInit();
         return;
     }
@@ -95,6 +101,7 @@ function connectAndInit() {
         streamHandle.onOpen(function () {
             connStatus.textContent = '● Connected';
             connStatus.className = 'conn-status connected';
+            updateInitButton();
             log('握手完成，开始初始化模拟...');
             triggerInit(); // 连接成功后自动触发 Init
         });
@@ -104,15 +111,18 @@ function connectAndInit() {
             connStatus.textContent = '● Error';
             connStatus.className = 'conn-status error';
             btnStep.disabled = true;
+            updateInitButton();
         });
         streamHandle.onEnd(function () {
             connStatus.textContent = '● Disconnected';
             connStatus.className = 'conn-status disconnected';
             btnStep.disabled = true;
+            updateInitButton();
         });
     } catch (e) {
         log('Connection failed: ' + e.message);
         connStatus.textContent = '● Disconnected';
+        updateInitButton();
     }
 }
 
