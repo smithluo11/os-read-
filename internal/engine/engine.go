@@ -84,9 +84,13 @@ func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *Simulatio
 				TotalChunks:        totalChunks,
 			},
 			HardwareState: &pb.HardwareView{
-				CmdRegister:    "0x00: NO_OP",
-				StatusRegister: "0x01: READY",
-				DataRegister:   []byte{},
+				CmdRegister:      "0x00: NO_OP",
+				StatusRegister:   "0x01: READY",
+				DataRegister:     []byte{},
+				DmaSource:        "—",
+				DmaDestination:   "—",
+				DmaCount:         0,
+				DmaStatus:        "IDLE",
 			},
 			IsFinished:     false,
 			FinalErrorCode: "SUCCESS",
@@ -341,30 +345,42 @@ func (e *SimulationEngine) executeHardwareLayer() {
 	switch e.SubStep {
 	case 1:
 		// 子步骤 1: DMA 控制器初始化
+		var dmaBytes uint32
 		if e.Config.UseDoubleBuffer {
-			remainingBytes := e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
-			if remainingBytes > chunkSize {
-				remainingBytes = chunkSize
+			dmaBytes = e.Config.BytesToRead - uint32(e.CurrentChunk)*chunkSize
+			if dmaBytes > chunkSize {
+				dmaBytes = chunkSize
 			}
 			e.Snapshot.StepDescription = fmt.Sprintf(
 				"【DMA 启动】磁盘控制器初始化 DMA 传输：源=磁盘扇区, 目标=内核缓冲区 %d, 字节数=%d。"+
 					"DMA 控制器接管总线，CPU 可继续执行其他任务。",
-				e.ActiveWriteBuffer, remainingBytes)
+				e.ActiveWriteBuffer, dmaBytes)
 		} else {
+			dmaBytes = e.Config.BytesToRead
 			e.Snapshot.StepDescription = "【DMA 启动】磁盘控制器初始化 DMA 传输：源=磁盘扇区, 目标=内核缓冲区。" +
 				"DMA 控制器接管总线，CPU 可继续执行其他任务。"
 		}
+		// 编程 DMA 控制器寄存器
+		e.Snapshot.HardwareState.DmaSource = fmt.Sprintf("0x%04X: Disk0 Sector", 0x400+e.CurrentChunk*8)
+		e.Snapshot.HardwareState.DmaDestination = fmt.Sprintf("0xBEEF%04X: Kernel Buf%d",
+			0x1000*e.ActiveWriteBuffer, e.ActiveWriteBuffer)
+		e.Snapshot.HardwareState.DmaCount = dmaBytes
+		e.Snapshot.HardwareState.DmaStatus = "SETUP"
 
 	case 2:
 		// 子步骤 2: 磁盘读取 + 数据就绪
 		if e.InjectedFault == pb.FaultType_FAULT_HARDWARE_TIMEOUT {
 			e.Snapshot.HardwareState.StatusRegister = "0x03: DEVICE_ERROR"
+			e.Snapshot.HardwareState.DmaStatus = "ERROR"
 			e.Snapshot.StepDescription = "【磁盘读取 异常】硬件响应超时！磁道损坏或设备控制器掉线。"
 			e.Snapshot.FinalErrorCode = "EIO (Input/output error)"
 			e.Snapshot.IsFinished = true
 			e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_READY
 			return
 		}
+
+		// DMA 传输进行中
+		e.Snapshot.HardwareState.DmaStatus = "TRANSFERRING"
 
 		// 生成模拟数据
 		if e.Config.UseDoubleBuffer {
@@ -396,6 +412,7 @@ func (e *SimulationEngine) executeHardwareLayer() {
 				dataSize)
 		}
 
+		e.Snapshot.HardwareState.DmaStatus = "DONE"
 		e.Snapshot.HardwareState.StatusRegister = "0x04: DATA_READY"
 
 	case 3:

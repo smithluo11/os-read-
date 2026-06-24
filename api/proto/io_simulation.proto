@@ -86,4 +86,9 @@ message HardwareView {
   string cmd_register = 1;
   string status_register = 2;
   bytes data_register = 3;
+  // DMA 控制器寄存器
+  string dma_source = 4;       // DMA 源地址 (如 "0x0000: Disk0 Sector 0x400")
+  string dma_destination = 5;  // DMA 目标地址 (如 "0xBEEF1000: Kernel Buf1")
+  uint32 dma_count = 6;        // DMA 传输字节数
+  string dma_status = 7;       // DMA 状态: IDLE / SETUP / TRANSFERRING / DONE
 }

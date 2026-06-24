@@ -709,6 +709,11 @@ type HardwareView struct {
 	CmdRegister    string                 `protobuf:"bytes,1,opt,name=cmd_register,json=cmdRegister,proto3" json:"cmd_register,omitempty"`
 	StatusRegister string                 `protobuf:"bytes,2,opt,name=status_register,json=statusRegister,proto3" json:"status_register,omitempty"`
 	DataRegister   []byte                 `protobuf:"bytes,3,opt,name=data_register,json=dataRegister,proto3" json:"data_register,omitempty"`
+	// DMA 控制器寄存器
+	DmaSource      string `protobuf:"bytes,4,opt,name=dma_source,json=dmaSource,proto3" json:"dma_source,omitempty"`                // DMA 源地址 (如 "0x0000: Disk0 Sector 0x400")
+	DmaDestination string `protobuf:"bytes,5,opt,name=dma_destination,json=dmaDestination,proto3" json:"dma_destination,omitempty"` // DMA 目标地址 (如 "0xBEEF1000: Kernel Buf1")
+	DmaCount       uint32 `protobuf:"varint,6,opt,name=dma_count,json=dmaCount,proto3" json:"dma_count,omitempty"`                  // DMA 传输字节数
+	DmaStatus      string `protobuf:"bytes,7,opt,name=dma_status,json=dmaStatus,proto3" json:"dma_status,omitempty"`                // DMA 状态: IDLE / SETUP / TRANSFERRING / DONE
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -762,6 +767,34 @@ func (x *HardwareView) GetDataRegister() []byte {
 		return x.DataRegister
 	}
 	return nil
+}
+
+func (x *HardwareView) GetDmaSource() string {
+	if x != nil {
+		return x.DmaSource
+	}
+	return ""
+}
+
+func (x *HardwareView) GetDmaDestination() string {
+	if x != nil {
+		return x.DmaDestination
+	}
+	return ""
+}
+
+func (x *HardwareView) GetDmaCount() uint32 {
+	if x != nil {
+		return x.DmaCount
+	}
+	return 0
+}
+
+func (x *HardwareView) GetDmaStatus() string {
+	if x != nil {
+		return x.DmaStatus
+	}
+	return ""
 }
 
 var File_io_simulation_proto protoreflect.FileDescriptor
@@ -824,11 +857,17 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x13active_write_buffer\x18\x05 \x01(\x05R\x11activeWriteBuffer\x12,\n" +
 	"\x12active_read_buffer\x18\x06 \x01(\x05R\x10activeReadBuffer\x12#\n" +
 	"\rcurrent_chunk\x18\a \x01(\x05R\fcurrentChunk\x12!\n" +
-	"\ftotal_chunks\x18\b \x01(\x05R\vtotalChunks\"\x7f\n" +
+	"\ftotal_chunks\x18\b \x01(\x05R\vtotalChunks\"\x83\x02\n" +
 	"\fHardwareView\x12!\n" +
 	"\fcmd_register\x18\x01 \x01(\tR\vcmdRegister\x12'\n" +
 	"\x0fstatus_register\x18\x02 \x01(\tR\x0estatusRegister\x12#\n" +
-	"\rdata_register\x18\x03 \x01(\fR\fdataRegister*\xa3\x01\n" +
+	"\rdata_register\x18\x03 \x01(\fR\fdataRegister\x12\x1d\n" +
+	"\n" +
+	"dma_source\x18\x04 \x01(\tR\tdmaSource\x12'\n" +
+	"\x0fdma_destination\x18\x05 \x01(\tR\x0edmaDestination\x12\x1b\n" +
+	"\tdma_count\x18\x06 \x01(\rR\bdmaCount\x12\x1d\n" +
+	"\n" +
+	"dma_status\x18\a \x01(\tR\tdmaStatus*\xa3\x01\n" +
 	"\tFaultType\x12\x0e\n" +
 	"\n" +
 	"FAULT_NONE\x10\x00\x12\x1b\n" +

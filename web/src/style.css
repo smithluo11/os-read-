@@ -608,6 +608,78 @@ select.sel {
 }
 
 /* ============================================================
+   DMA CONTROLLER PANEL
+   ============================================================ */
+
+.dma-panel {
+    width: 100%;
+}
+.dma-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+}
+.dma-cell {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 5px 8px;
+    text-align: center;
+}
+.dma-label {
+    display: block;
+    font-family: var(--sans); font-size: 8px; font-weight: 600;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 2px;
+}
+.dma-val {
+    display: block;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-muted);
+    word-break: break-all;
+}
+.dma-status {
+    font-weight: 700;
+    transition: all 0.3s ease;
+}
+.dma-status.dma-setup {
+    color: var(--amber);
+    animation: dma-blink 0.8s ease-in-out infinite;
+}
+.dma-status.dma-transferring {
+    color: var(--phosphor);
+    animation: dma-blink 0.4s ease-in-out infinite;
+}
+.dma-status.dma-done {
+    color: #059669;
+}
+.dma-status.dma-error {
+    color: var(--red);
+    animation: err-blink 0.6s ease-in-out 3;
+}
+@keyframes dma-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.dma-regs {
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+}
+.dma-regs code {
+    display: block;
+    font-family: var(--mono); font-size: 8px;
+    color: var(--ink-muted);
+    padding: 1px 0;
+}
+
+/* ============================================================
    RIGHT INFO PANELS
    ============================================================ */
 

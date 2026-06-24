@@ -294,8 +294,21 @@ function onSnapshot(snapMsg) {
     }
 
     if (snap.hardwareState) {
-        $('hw-cmd').textContent = `CMD: ${snap.hardwareState.cmdRegister || 'NO_OP'}`;
-        $('hw-status').textContent = `STS: ${snap.hardwareState.statusRegister || 'READY'}`;
+        const hw = snap.hardwareState;
+        $('hw-cmd').textContent = `CMD: ${hw.cmdRegister || 'NO_OP'}`;
+        $('hw-status').textContent = `STS: ${hw.statusRegister || 'READY'}`;
+        // DMA 控制器面板
+        $('dma-src').textContent = hw.dmaSource || '—';
+        $('dma-dst').textContent = hw.dmaDestination || '—';
+        $('dma-cnt').textContent = hw.dmaCount || 0;
+        // DMA 状态带颜色
+        const dmaSts = $('dma-sts');
+        dmaSts.textContent = hw.dmaStatus || 'IDLE';
+        dmaSts.className = 'dma-val dma-status';
+        if (hw.dmaStatus === 'SETUP') dmaSts.classList.add('dma-setup');
+        else if (hw.dmaStatus === 'TRANSFERRING') dmaSts.classList.add('dma-transferring');
+        else if (hw.dmaStatus === 'DONE') dmaSts.classList.add('dma-done');
+        else if (hw.dmaStatus === 'ERROR') dmaSts.classList.add('dma-error');
     }
 
     // 内核差错控制台：根据快照状态更新

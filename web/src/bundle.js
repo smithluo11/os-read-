@@ -6726,7 +6726,11 @@ var IOSimBundle = (() => {
           var f, obj = {
             cmdRegister: jspb2.Message.getFieldWithDefault(msg, 1, ""),
             statusRegister: jspb2.Message.getFieldWithDefault(msg, 2, ""),
-            dataRegister: msg.getDataRegister_asB64()
+            dataRegister: msg.getDataRegister_asB64(),
+            dmaSource: jspb2.Message.getFieldWithDefault(msg, 4, ""),
+            dmaDestination: jspb2.Message.getFieldWithDefault(msg, 5, ""),
+            dmaCount: jspb2.Message.getFieldWithDefault(msg, 6, 0),
+            dmaStatus: jspb2.Message.getFieldWithDefault(msg, 7, "")
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -6767,6 +6771,34 @@ var IOSimBundle = (() => {
               );
               msg.setDataRegister(value);
               break;
+            case 4:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setDmaSource(value);
+              break;
+            case 5:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setDmaDestination(value);
+              break;
+            case 6:
+              var value = (
+                /** @type {number} */
+                reader.readUint32()
+              );
+              msg.setDmaCount(value);
+              break;
+            case 7:
+              var value = (
+                /** @type {string} */
+                reader.readString()
+              );
+              msg.setDmaStatus(value);
+              break;
             default:
               reader.skipField();
               break;
@@ -6799,6 +6831,34 @@ var IOSimBundle = (() => {
         if (f.length > 0) {
           writer.writeBytes(
             3,
+            f
+          );
+        }
+        f = message.getDmaSource();
+        if (f.length > 0) {
+          writer.writeString(
+            4,
+            f
+          );
+        }
+        f = message.getDmaDestination();
+        if (f.length > 0) {
+          writer.writeString(
+            5,
+            f
+          );
+        }
+        f = message.getDmaCount();
+        if (f !== 0) {
+          writer.writeUint32(
+            6,
+            f
+          );
+        }
+        f = message.getDmaStatus();
+        if (f.length > 0) {
+          writer.writeString(
+            7,
             f
           );
         }
@@ -6845,6 +6905,42 @@ var IOSimBundle = (() => {
       };
       proto.io_simulator.HardwareView.prototype.setDataRegister = function(value) {
         return jspb2.Message.setProto3BytesField(this, 3, value);
+      };
+      proto.io_simulator.HardwareView.prototype.getDmaSource = function() {
+        return (
+          /** @type {string} */
+          jspb2.Message.getFieldWithDefault(this, 4, "")
+        );
+      };
+      proto.io_simulator.HardwareView.prototype.setDmaSource = function(value) {
+        return jspb2.Message.setProto3StringField(this, 4, value);
+      };
+      proto.io_simulator.HardwareView.prototype.getDmaDestination = function() {
+        return (
+          /** @type {string} */
+          jspb2.Message.getFieldWithDefault(this, 5, "")
+        );
+      };
+      proto.io_simulator.HardwareView.prototype.setDmaDestination = function(value) {
+        return jspb2.Message.setProto3StringField(this, 5, value);
+      };
+      proto.io_simulator.HardwareView.prototype.getDmaCount = function() {
+        return (
+          /** @type {number} */
+          jspb2.Message.getFieldWithDefault(this, 6, 0)
+        );
+      };
+      proto.io_simulator.HardwareView.prototype.setDmaCount = function(value) {
+        return jspb2.Message.setProto3IntField(this, 6, value);
+      };
+      proto.io_simulator.HardwareView.prototype.getDmaStatus = function() {
+        return (
+          /** @type {string} */
+          jspb2.Message.getFieldWithDefault(this, 7, "")
+        );
+      };
+      proto.io_simulator.HardwareView.prototype.setDmaStatus = function(value) {
+        return jspb2.Message.setProto3StringField(this, 7, value);
       };
       proto.io_simulator.FaultType = {
         FAULT_NONE: 0,

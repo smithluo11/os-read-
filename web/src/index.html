@@ -188,7 +188,30 @@
       <div class="hw-int-row" style="position:absolute; top:500px; left:50%; transform:translateX(-50%); width:680px; display:flex; justify-content:space-between; z-index:10;">
         <div class="layer-card hw-card" id="layer-HW">
           <span class="layer-tag">L4</span><span class="layer-name">硬件层 (磁盘控制器)</span><span class="layer-sub">DMA 数据读取</span><span class="layer-steps"></span>
-          <div class="regs" style="margin-top:12px;"><code id="hw-cmd">CMD: NO_OP</code><code id="hw-status">STS: READY</code></div>
+          <div class="dma-panel" style="margin-top:10px;">
+            <div class="dma-grid">
+              <div class="dma-cell">
+                <span class="dma-label">源地址</span>
+                <code class="dma-val" id="dma-src">—</code>
+              </div>
+              <div class="dma-cell">
+                <span class="dma-label">目标地址</span>
+                <code class="dma-val" id="dma-dst">—</code>
+              </div>
+              <div class="dma-cell">
+                <span class="dma-label">传输字节</span>
+                <code class="dma-val" id="dma-cnt">0</code>
+              </div>
+              <div class="dma-cell">
+                <span class="dma-label">DMA 状态</span>
+                <code class="dma-val dma-status" id="dma-sts">IDLE</code>
+              </div>
+            </div>
+            <div class="dma-regs">
+              <code id="hw-cmd">CMD: NO_OP</code>
+              <code id="hw-status">STS: READY</code>
+            </div>
+          </div>
         </div>
         <div class="layer-card int-card" id="layer-INT">
           <span class="layer-tag">L3</span><span class="layer-name">中断处理程序 (ISR)</span><span class="layer-sub">ISR 中断服务</span><span class="layer-steps"></span>
