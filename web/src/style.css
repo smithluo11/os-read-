@@ -351,14 +351,65 @@ select.sel {
     opacity: 1;
     animation: dash-march-up 0.5s linear infinite;
 }
+/* 返回阶段连接器增强 */
+.connector.return-path.active {
+    stroke: var(--cobalt);
+    stroke-width: 2.2;
+    filter: url(#glow-active);
+}
 @keyframes dash-march { to { stroke-dashoffset: -18; } }
-@keyframes dash-march-up { to { stroke-dashoffset: -18; } }
+@keyframes dash-march-up { to { stroke-dashoffset: 18; } }
 
 .conn-label {
     font-family: var(--mono); font-size: 9px;
     color: var(--ink-dim);
     text-align: center; line-height: 24px;
     letter-spacing: 1px;
+}
+
+/* ============================================================
+   PHASE BADGE — 阶段指示器
+   ============================================================ */
+
+.phase-badge {
+    font-family: var(--sans); font-size: 13px; font-weight: 700;
+    padding: 6px 18px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+    white-space: nowrap;
+    background: var(--bg-card);
+    color: var(--ink-dim);
+    border: 1px solid var(--border);
+}
+.phase-badge.phase-request {
+    background: var(--phosphor-soft);
+    color: var(--phosphor-dim);
+    border-color: var(--phosphor);
+    box-shadow: 0 0 12px var(--phosphor-glow);
+}
+.phase-badge.phase-hardware {
+    background: var(--amber-soft);
+    color: var(--amber);
+    border-color: var(--amber);
+    box-shadow: 0 0 12px rgba(217,119,6,0.18);
+}
+.phase-badge.phase-return {
+    background: var(--cobalt-soft);
+    color: var(--cobalt);
+    border-color: var(--cobalt);
+    box-shadow: 0 0 14px rgba(99,102,241,0.22);
+    animation: phase-return-pulse 1.5s ease-in-out infinite;
+}
+.phase-badge.phase-complete {
+    background: rgba(16,185,129,0.10);
+    color: #059669;
+    border-color: #10b981;
+    box-shadow: 0 0 10px rgba(16,185,129,0.15);
+}
+@keyframes phase-return-pulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(99,102,241,0.18); }
+    50% { box-shadow: 0 0 22px rgba(99,102,241,0.35); }
 }
 
 /* ============================================================
@@ -396,6 +447,26 @@ select.sel {
     transform: translateX(-50%) scale(1.03);
     z-index: 20;
     animation: card-glow 2s ease-in-out infinite;
+}
+/* 返回阶段使用钴蓝色高亮，与下行青蓝色区分 */
+.layer-card.active.phase-return {
+    border-color: var(--cobalt);
+    box-shadow:
+        0 0 20px rgba(99,102,241,0.25),
+        0 4px 16px rgba(0,0,0,0.06);
+    animation: card-glow-return 2s ease-in-out infinite;
+}
+.layer-card.active.phase-return .layer-tag {
+    color: var(--cobalt);
+    background: var(--cobalt-soft);
+}
+.layer-card.active.phase-return .layer-steps {
+    color: var(--cobalt);
+    background: var(--cobalt-soft);
+}
+@keyframes card-glow-return {
+    0%, 100% { box-shadow: 0 0 16px rgba(99,102,241,0.22), 0 4px 12px rgba(0,0,0,0.04); }
+    50% { box-shadow: 0 0 30px rgba(99,102,241,0.35), 0 6px 20px rgba(0,0,0,0.08); }
 }
 .layer-card.error {
     border-color: var(--red);

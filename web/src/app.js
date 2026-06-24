@@ -7,6 +7,15 @@ let streamHandle = null;
 let prevSnap = null;
 let autoTimer = null;
 let stepCount = 0;
+let phase = 'idle'; // 'idle' | 'request' | 'hardware' | 'return' | 'complete'
+
+const phaseMeta = {
+    idle:     { label: '等待初始化',        icon: '⏳', cls: '' },
+    request:  { label: 'IRP ↓ 下行请求',    icon: '⬇', cls: 'phase-request' },
+    hardware: { label: '💾 硬件磁盘读取',    icon: '⏺', cls: 'phase-hardware' },
+    return:   { label: 'DATA ↑ 数据返回',    icon: '⬆', cls: 'phase-return' },
+    complete: { label: '✅ 完成',            icon: '✓', cls: 'phase-complete' }
+};
 
 // ---- DOM refs ----
 const $ = (id) => document.getElementById(id);
@@ -28,7 +37,8 @@ const ctx = canvas.getContext('2d');
 
 // ---- Connect & Init 合并逻辑 ----
 function triggerInit() {
-    prevSnap = null; stepCount = 0;
+    prevSnap = null; stepCount = 0; phase = 'request';
+    updatePhaseBadge();
     stepLog.innerHTML = '';
     $('err-msg').textContent = 'SUCCESS'; $('err-msg').className = '';
     $('ubuf-display').textContent = ''; $('ubuf-len').textContent = '0';
@@ -105,12 +115,52 @@ function doStep() {
     send(window.IOSim.newStepCommand());
 }
 
-// ---- Snapshot Render (简化版，保留你原有逻辑) ----
+// ---- Phase Tracking ----
+function updatePhaseBadge() {
+    const badge = $('phase-badge');
+    if (!badge) return;
+    const meta = phaseMeta[phase] || phaseMeta.idle;
+    badge.textContent = meta.icon + ' ' + meta.label;
+    badge.className = 'phase-badge ' + meta.cls;
+}
+
+function detectPhase(snap, prev) {
+    const curLayer = snap.currentActiveLayer;
+    const prevLayer = prev ? prev.currentActiveLayer : null;
+
+    // INIT → request
+    if (!prev) { phase = 'request'; updatePhaseBadge(); return; }
+
+    // DRV(2) → HW(4): entering hardware phase
+    if (prevLayer === 2 && curLayer === 4) {
+        phase = 'hardware'; updatePhaseBadge(); return;
+    }
+    // HW(4) → INT(3): entering return phase (data coming back up!)
+    if (prevLayer === 4 && curLayer === 3) {
+        phase = snap.isFinished ? 'complete' : 'return';
+        updatePhaseBadge(); return;
+    }
+    // INT(3) → DRV(2): ping-pong, still in return phase
+    if (prevLayer === 3 && curLayer === 2) {
+        // phase stays 'return'
+        return;
+    }
+
+    // Simulation finished
+    if (snap.isFinished) {
+        phase = 'complete'; updatePhaseBadge(); return;
+    }
+
+    updatePhaseBadge();
+}
+
+// ---- Snapshot Render ----
 const layerMap = { 0:'USER', 1:'VFS', 2:'DRV', 4:'HW', 3:'INT' };
 
 function onSnapshot(snapMsg) {
     const snap = snapMsg.toObject();
     stepCount++;
+    detectPhase(snap, prevSnap);
 
     // 子步骤日志格式: [S3.2] (VFS 2/4) description...
     const subInfo = (snap.totalSubSteps > 1)
@@ -121,10 +171,16 @@ function onSnapshot(snapMsg) {
     const activeLayer = layerMap[snap.currentActiveLayer] || 'USER';
 
     // 清除所有层卡片状态，高亮当前活动层
-    document.querySelectorAll('.layer-card').forEach(el => el.classList.remove('active','error'));
+    document.querySelectorAll('.layer-card').forEach(el => el.classList.remove('active','error','phase-request','phase-return'));
     const card = $(`layer-${activeLayer}`);
     if (card) {
         card.classList.add('active');
+        // 按阶段附加颜色类：下行青蓝色 / 上行钴蓝色
+        if (phase === 'return') {
+            card.classList.add('phase-return');
+        } else {
+            card.classList.add('phase-request');
+        }
         if (snap.isFinished && snap.finalErrorCode !== 'SUCCESS') card.classList.add('error');
         // 更新活动层卡片的子步骤指示器
         const stepsEl = card.querySelector('.layer-steps');
@@ -135,21 +191,61 @@ function onSnapshot(snapMsg) {
         }
     }
 
+    // ── 连接器高亮：按阶段区分下行 IRP↓ / 上行 DATA↑ ──
     document.querySelectorAll('.connector').forEach(el => el.classList.remove('active'));
-    const connMap = { 'VFS':'conn-u-v', 'DRV':'conn-v-d', 'HW':'conn-d-h', 'INT':'conn-h-i' };
-    if (connMap[activeLayer]) $(connMap[activeLayer]).classList.add('active');
-    
     const prevLayer = prevSnap ? layerMap[prevSnap.currentActiveLayer] : null;
-    if (activeLayer === 'DRV' && prevLayer === 'INT') $('conn-i-d').classList.add('active');
-    else $('conn-i-d').classList.remove('active');
 
-    // 数据返回路径：当用户缓冲区收到数据时激活
+    if (phase === 'return') {
+        // 上行返回阶段：点亮 IRQ↑ 和 DATA↑ 返回路径
+        if (activeLayer === 'INT') {
+            $('conn-h-i').classList.add('active');           // HW→INT IRQ↑
+        }
+        if (activeLayer === 'DRV' && prevLayer === 'INT') {
+            $('conn-i-d').classList.add('active');           // INT→DRV 循环
+        }
+        if (activeLayer === 'HW') {
+            $('conn-d-h').classList.add('active');           // DRV→HW 请求
+        }
+        // 点亮返回路径连接器 (DRV→VFS→USER)
+        document.querySelectorAll('.connector.return-path').forEach(function(el) {
+            el.classList.add('active');
+        });
+        // 高亮 DATA↑ 标签
+        const dataLabel = document.getElementById('data-label');
+        if (dataLabel) dataLabel.style.opacity = '1';
+        const irqLabel = document.getElementById('irq-label');
+        if (irqLabel) irqLabel.style.opacity = '1';
+        const irpLabel = document.getElementById('irp-label');
+        if (irpLabel) irpLabel.style.opacity = '0.3';
+    } else if (phase === 'hardware') {
+        // 硬件阶段
+        $('conn-d-h').classList.add('active');
+        document.getElementById('irp-label').style.opacity = '1';
+        document.getElementById('irq-label').style.opacity = '0.3';
+        document.getElementById('data-label').style.opacity = '0.3';
+    } else {
+        // 下行请求阶段：仅点亮 IRP↓ 连接器
+        const connMap = { 'VFS':'conn-u-v', 'DRV':'conn-v-d', 'HW':'conn-d-h' };
+        if (connMap[activeLayer]) $(connMap[activeLayer]).classList.add('active');
+        document.getElementById('irp-label').style.opacity = '1';
+        document.getElementById('irq-label').style.opacity = '0.3';
+        document.getElementById('data-label').style.opacity = '0.3';
+        // INT→DRV 回环在请求阶段不应出现
+        $('conn-i-d').classList.remove('active');
+    }
+
+    // 数据返回路径：当用户缓冲区实际收到数据时增强显示
     const hasData = snap.memoryState && snap.memoryState.userBufferData && snap.memoryState.userBufferData.length > 0;
-    document.querySelectorAll('.connector.return-path').forEach(function(el) {
-        el.classList.toggle('active', hasData);
-    });
-    const dataLabel = document.getElementById('data-label');
-    if (dataLabel) dataLabel.style.opacity = hasData ? '1' : '0.3';
+    if (hasData && phase === 'return') {
+        // 数据已到达，返回路径额外脉冲动画
+        document.querySelectorAll('.connector.return-path').forEach(function(el) {
+            el.style.filter = 'url(#glow-active)';
+        });
+    } else {
+        document.querySelectorAll('.connector.return-path').forEach(function(el) {
+            el.style.filter = '';
+        });
+    }
 
     if (snap.stepDescription) $('vfs-desc').textContent = snap.stepDescription.substring(0, 60);
 
