@@ -5780,7 +5780,8 @@ var IOSimBundle = (() => {
             filePath: jspb2.Message.getFieldWithDefault(msg, 1, ""),
             bytesToRead: jspb2.Message.getFieldWithDefault(msg, 2, 0),
             userBufferAddr: jspb2.Message.getFieldWithDefault(msg, 3, 0),
-            useDoubleBuffer: jspb2.Message.getBooleanFieldWithDefault(msg, 4, false)
+            useDoubleBuffer: jspb2.Message.getBooleanFieldWithDefault(msg, 4, false),
+            usePageCache: jspb2.Message.getBooleanFieldWithDefault(msg, 5, false)
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -5828,6 +5829,13 @@ var IOSimBundle = (() => {
               );
               msg.setUseDoubleBuffer(value);
               break;
+            case 5:
+              var value = (
+                /** @type {boolean} */
+                reader.readBool()
+              );
+              msg.setUsePageCache(value);
+              break;
             default:
               reader.skipField();
               break;
@@ -5870,6 +5878,13 @@ var IOSimBundle = (() => {
             f
           );
         }
+        f = message.getUsePageCache();
+        if (f) {
+          writer.writeBool(
+            5,
+            f
+          );
+        }
       };
       proto.io_simulator.ReadRequestConfig.prototype.getFilePath = function() {
         return (
@@ -5906,6 +5921,15 @@ var IOSimBundle = (() => {
       };
       proto.io_simulator.ReadRequestConfig.prototype.setUseDoubleBuffer = function(value) {
         return jspb2.Message.setProto3BooleanField(this, 4, value);
+      };
+      proto.io_simulator.ReadRequestConfig.prototype.getUsePageCache = function() {
+        return (
+          /** @type {boolean} */
+          jspb2.Message.getBooleanFieldWithDefault(this, 5, false)
+        );
+      };
+      proto.io_simulator.ReadRequestConfig.prototype.setUsePageCache = function(value) {
+        return jspb2.Message.setProto3BooleanField(this, 5, value);
       };
       if (jspb2.Message.GENERATE_TO_OBJECT) {
         proto.io_simulator.UserContext.prototype.toObject = function(opt_includeInstance) {
@@ -6451,7 +6475,9 @@ var IOSimBundle = (() => {
             activeWriteBuffer: jspb2.Message.getFieldWithDefault(msg, 5, 0),
             activeReadBuffer: jspb2.Message.getFieldWithDefault(msg, 6, 0),
             currentChunk: jspb2.Message.getFieldWithDefault(msg, 7, 0),
-            totalChunks: jspb2.Message.getFieldWithDefault(msg, 8, 0)
+            totalChunks: jspb2.Message.getFieldWithDefault(msg, 8, 0),
+            cacheHit: jspb2.Message.getBooleanFieldWithDefault(msg, 9, false),
+            cachedPages: jspb2.Message.getFieldWithDefault(msg, 10, 0)
           };
           if (includeInstance) {
             obj.$jspbMessageInstance = msg;
@@ -6527,6 +6553,20 @@ var IOSimBundle = (() => {
               );
               msg.setTotalChunks(value);
               break;
+            case 9:
+              var value = (
+                /** @type {boolean} */
+                reader.readBool()
+              );
+              msg.setCacheHit(value);
+              break;
+            case 10:
+              var value = (
+                /** @type {number} */
+                reader.readUint32()
+              );
+              msg.setCachedPages(value);
+              break;
             default:
               reader.skipField();
               break;
@@ -6594,6 +6634,20 @@ var IOSimBundle = (() => {
         if (f !== 0) {
           writer.writeInt32(
             8,
+            f
+          );
+        }
+        f = message.getCacheHit();
+        if (f) {
+          writer.writeBool(
+            9,
+            f
+          );
+        }
+        f = message.getCachedPages();
+        if (f !== 0) {
+          writer.writeUint32(
+            10,
             f
           );
         }
@@ -6717,6 +6771,24 @@ var IOSimBundle = (() => {
       };
       proto.io_simulator.MemoryView.prototype.setTotalChunks = function(value) {
         return jspb2.Message.setProto3IntField(this, 8, value);
+      };
+      proto.io_simulator.MemoryView.prototype.getCacheHit = function() {
+        return (
+          /** @type {boolean} */
+          jspb2.Message.getBooleanFieldWithDefault(this, 9, false)
+        );
+      };
+      proto.io_simulator.MemoryView.prototype.setCacheHit = function(value) {
+        return jspb2.Message.setProto3BooleanField(this, 9, value);
+      };
+      proto.io_simulator.MemoryView.prototype.getCachedPages = function() {
+        return (
+          /** @type {number} */
+          jspb2.Message.getFieldWithDefault(this, 10, 0)
+        );
+      };
+      proto.io_simulator.MemoryView.prototype.setCachedPages = function(value) {
+        return jspb2.Message.setProto3IntField(this, 10, value);
       };
       if (jspb2.Message.GENERATE_TO_OBJECT) {
         proto.io_simulator.HardwareView.prototype.toObject = function(opt_includeInstance) {
@@ -7105,12 +7177,13 @@ var IOSimBundle = (() => {
           cmd.setInjectedFault(faultType);
           return cmd;
         },
-        newReadConfig(filePath, bytesToRead, userBufferAddr, useDoubleBuffer) {
+        newReadConfig(filePath, bytesToRead, userBufferAddr, useDoubleBuffer, usePageCache) {
           const cfg = new pb.ReadRequestConfig();
           cfg.setFilePath(filePath);
           cfg.setBytesToRead(bytesToRead);
           cfg.setUserBufferAddr(userBufferAddr);
           cfg.setUseDoubleBuffer(useDoubleBuffer);
+          cfg.setUsePageCache(!!usePageCache);
           return cfg;
         },
         newUserContext(uid, gid, username, homeDir) {

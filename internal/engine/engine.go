@@ -36,6 +36,10 @@ type SimulationEngine struct {
 	ActiveReadBuffer  int32
 	CurrentChunk      int32
 	TotalChunks       int32
+
+	// 页缓存 (Page Cache) — 模拟内核文件页缓存
+	PageCache   map[string][]byte // key: filePath, value: cached data
+	CacheMissed bool              // 当前读是否缓存未命中 (用于 ISR 完成后回写)
 }
 
 // NewEngine 初始化一次全新的 read 模拟
@@ -45,8 +49,16 @@ func NewEngine(config *pb.ReadRequestConfig, userCtx *pb.UserContext) *Simulatio
 		totalChunks = int32((config.BytesToRead + chunkSize - 1) / chunkSize)
 	}
 
+	// 初始化页缓存
+	var pageCache map[string][]byte
+	if config.UsePageCache {
+		pageCache = make(map[string][]byte)
+	}
+
 	return &SimulationEngine{
 		CurrentLayer:  pb.SystemSnapshot_LAYER_USER,
+		CacheMissed:   false,
+		PageCache:     pageCache,
 		SubStep:       0, // 首次 NextStep 会推进到 1
 		StepIndex:     0,
 		Config:        config,
@@ -211,7 +223,7 @@ func (e *SimulationEngine) executeUserLayer() {
 
 func (e *SimulationEngine) executeIndependentLayer() {
 	e.Snapshot.CurrentActiveLayer = pb.SystemSnapshot_LAYER_INDEPENDENT
-	e.Snapshot.TotalSubSteps = 4
+	e.Snapshot.TotalSubSteps = 5
 
 	switch e.SubStep {
 	case 1:
@@ -264,7 +276,58 @@ func (e *SimulationEngine) executeIndependentLayer() {
 			uid, gid)
 
 	case 3:
-		// 子步骤 3: 内核缓冲分配
+		// 子步骤 3: 页缓存查找 — 检查数据是否已在 Page Cache 中
+		if e.Config.UsePageCache && e.PageCache != nil {
+			if cachedData, ok := e.PageCache[e.Config.FilePath]; ok {
+				// 缓存命中！直接返回数据，跳过磁盘 I/O
+				e.Snapshot.MemoryState.CacheHit = true
+				dataSize := int(e.Config.BytesToRead)
+				if dataSize > len(cachedData) {
+					dataSize = len(cachedData)
+				}
+				e.Snapshot.MemoryState.UserBufferData = cachedData[:dataSize]
+				e.Snapshot.MemoryState.CachedPages = uint32(len(e.PageCache))
+				e.Snapshot.ProcessState.State = pb.ProcessBlock_STATE_RUNNING
+				e.Snapshot.ProcessState.WaitReason = ""
+
+				// 更新文件偏移量
+				bytesRead := int64(dataSize)
+				for _, entry := range e.FdTable {
+					if entry.Fd == e.CurrentFd {
+						entry.FilePos += bytesRead
+						break
+					}
+				}
+
+				e.Snapshot.StepDescription = fmt.Sprintf(
+					"【页缓存 命中 ✓】文件 %q 的 %d 字节数据已在页缓存 (Page Cache) 中！"+
+						"直接从 RAM 拷贝到用户缓冲区，无需磁盘 I/O。"+
+						"缓存页数: %d。sys_read() 返回 %d 字节。",
+					e.Config.FilePath, dataSize, len(e.PageCache), bytesRead)
+				e.Snapshot.FinalErrorCode = "SUCCESS"
+				e.Snapshot.IsFinished = true
+				return
+			}
+		}
+		// 缓存未命中
+		e.CacheMissed = e.Config.UsePageCache
+		e.Snapshot.MemoryState.CacheHit = false
+		if e.Config.UsePageCache {
+			cachePages := uint32(0)
+			if e.PageCache != nil {
+				cachePages = uint32(len(e.PageCache))
+			}
+			e.Snapshot.MemoryState.CachedPages = cachePages
+			e.Snapshot.StepDescription = fmt.Sprintf(
+				"【页缓存 未命中 ✗】文件 %q 不在页缓存中，需要访问磁盘。"+
+					"VFS 向 Page Cache 分配新页框，准备从磁盘填充。当前缓存 %d 页。",
+				e.Config.FilePath, cachePages)
+		} else {
+			e.Snapshot.StepDescription = "【直接 I/O】页缓存已禁用，直接访问磁盘。"
+		}
+
+	case 4:
+		// 子步骤 4: 内核缓冲分配
 		bufType := "单缓冲区 (Simple Buffer)"
 		if e.Config.UseDoubleBuffer {
 			bufType = fmt.Sprintf("双缓冲区 / 乒乓缓冲 (Ping-Pong A/B, %d 块 × %d 字节)", e.TotalChunks, chunkSize)
@@ -272,8 +335,8 @@ func (e *SimulationEngine) executeIndependentLayer() {
 		e.Snapshot.StepDescription = fmt.Sprintf(
 			"【缓冲分配】VFS 根据配置在内核空间分配 %s，准备接收磁盘数据", bufType)
 
-	case 4:
-		// 子步骤 4: IRP 构造与下发
+	case 5:
+		// 子步骤 5: IRP 构造与下发
 		e.Snapshot.MemoryState.CurrentIrpInfo = fmt.Sprintf(
 			"IRP_READ → Dev:Disk0, Len:%d, Buf:0x%X", e.Config.BytesToRead, e.Config.UserBufferAddr)
 		e.Snapshot.StepDescription = fmt.Sprintf(
@@ -538,6 +601,13 @@ func (e *SimulationEngine) executeInterruptLayer() {
 						"文件偏移量: %d → %d。"+
 						"ISR 恢复上下文 (iret)，进程 %d 回到用户态继续执行。",
 					bytesRead, oldPos, newPos, e.Snapshot.ProcessState.Pid)
+			}
+
+			// 页缓存回写：缓存未命中时，将读取的数据存入 Page Cache
+			if e.CacheMissed && e.PageCache != nil {
+				e.PageCache[e.Config.FilePath] = e.Snapshot.MemoryState.UserBufferData
+				e.Snapshot.MemoryState.CachedPages = uint32(len(e.PageCache))
+				e.CacheMissed = false
 			}
 
 			e.Snapshot.IsFinished = true

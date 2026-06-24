@@ -125,6 +125,11 @@
       <span class="toggle-track"><span class="toggle-thumb"></span></span>
       <span id="lbl-dblbuf" class="toggle-label">双缓冲</span>
     </label>
+    <label class="toggle" title="页缓存">
+      <input type="checkbox" id="cfg-cache" checked>
+      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      <span id="lbl-cache" class="toggle-label">页缓存</span>
+    </label>
     <select id="cfg-fault" class="sel">
       <option value="0">正常流转 (无故障注入)</option>
       <option value="1">权限拒绝 (EACCES)</option>
@@ -178,6 +183,7 @@
 
       <div class="layer-card" id="layer-VFS" style="position:absolute; top:140px; left:50%; transform:translateX(-50%); width:560px;">
         <span class="layer-tag">L1</span><span class="layer-name">设备无关软件 (VFS)</span><span class="layer-sub" id="vfs-desc">等待系统调用...</span><span class="layer-steps"></span>
+        <span class="cache-badge cache-off" id="cache-status">已禁用</span>
         <div class="buffers-row" id="vfs-buffers" style="display:flex; gap:10px; margin-top:12px; width:100%;">
           <div class="kbuf" id="kbuf1" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
           <div class="kbuf" id="kbuf2" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>

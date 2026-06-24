@@ -27,6 +27,7 @@ message ReadRequestConfig {
   uint32 bytes_to_read = 2;
   uint64 user_buffer_addr = 3;
   bool use_double_buffer = 4;
+  bool use_page_cache = 5;      // 是否启用页缓存 (Page Cache)
 }
 
 enum FaultType {
@@ -80,6 +81,8 @@ message MemoryView {
   int32 active_read_buffer = 6;
   int32 current_chunk = 7;
   int32 total_chunks = 8;
+  bool cache_hit = 9;           // 当前读是否页缓存命中
+  uint32 cached_pages = 10;     // 缓存中的总页数
 }
 
 message HardwareView {

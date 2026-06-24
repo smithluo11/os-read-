@@ -306,6 +306,7 @@ type ReadRequestConfig struct {
 	BytesToRead     uint32                 `protobuf:"varint,2,opt,name=bytes_to_read,json=bytesToRead,proto3" json:"bytes_to_read,omitempty"`
 	UserBufferAddr  uint64                 `protobuf:"varint,3,opt,name=user_buffer_addr,json=userBufferAddr,proto3" json:"user_buffer_addr,omitempty"`
 	UseDoubleBuffer bool                   `protobuf:"varint,4,opt,name=use_double_buffer,json=useDoubleBuffer,proto3" json:"use_double_buffer,omitempty"`
+	UsePageCache    bool                   `protobuf:"varint,5,opt,name=use_page_cache,json=usePageCache,proto3" json:"use_page_cache,omitempty"` // 是否启用页缓存 (Page Cache)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -364,6 +365,13 @@ func (x *ReadRequestConfig) GetUserBufferAddr() uint64 {
 func (x *ReadRequestConfig) GetUseDoubleBuffer() bool {
 	if x != nil {
 		return x.UseDoubleBuffer
+	}
+	return false
+}
+
+func (x *ReadRequestConfig) GetUsePageCache() bool {
+	if x != nil {
+		return x.UsePageCache
 	}
 	return false
 }
@@ -614,6 +622,8 @@ type MemoryView struct {
 	ActiveReadBuffer   int32                  `protobuf:"varint,6,opt,name=active_read_buffer,json=activeReadBuffer,proto3" json:"active_read_buffer,omitempty"`
 	CurrentChunk       int32                  `protobuf:"varint,7,opt,name=current_chunk,json=currentChunk,proto3" json:"current_chunk,omitempty"`
 	TotalChunks        int32                  `protobuf:"varint,8,opt,name=total_chunks,json=totalChunks,proto3" json:"total_chunks,omitempty"`
+	CacheHit           bool                   `protobuf:"varint,9,opt,name=cache_hit,json=cacheHit,proto3" json:"cache_hit,omitempty"`           // 当前读是否页缓存命中
+	CachedPages        uint32                 `protobuf:"varint,10,opt,name=cached_pages,json=cachedPages,proto3" json:"cached_pages,omitempty"` // 缓存中的总页数
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -700,6 +710,20 @@ func (x *MemoryView) GetCurrentChunk() int32 {
 func (x *MemoryView) GetTotalChunks() int32 {
 	if x != nil {
 		return x.TotalChunks
+	}
+	return 0
+}
+
+func (x *MemoryView) GetCacheHit() bool {
+	if x != nil {
+		return x.CacheHit
+	}
+	return false
+}
+
+func (x *MemoryView) GetCachedPages() uint32 {
+	if x != nil {
+		return x.CachedPages
 	}
 	return 0
 }
@@ -810,12 +834,13 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x06Action\x12\x0f\n" +
 	"\vACTION_INIT\x10\x00\x12\x14\n" +
 	"\x10ACTION_STEP_NEXT\x10\x01\x12\x17\n" +
-	"\x13ACTION_INJECT_FAULT\x10\x02\"\xaa\x01\n" +
+	"\x13ACTION_INJECT_FAULT\x10\x02\"\xd0\x01\n" +
 	"\x11ReadRequestConfig\x12\x1b\n" +
 	"\tfile_path\x18\x01 \x01(\tR\bfilePath\x12\"\n" +
 	"\rbytes_to_read\x18\x02 \x01(\rR\vbytesToRead\x12(\n" +
 	"\x10user_buffer_addr\x18\x03 \x01(\x04R\x0euserBufferAddr\x12*\n" +
-	"\x11use_double_buffer\x18\x04 \x01(\bR\x0fuseDoubleBuffer\"h\n" +
+	"\x11use_double_buffer\x18\x04 \x01(\bR\x0fuseDoubleBuffer\x12$\n" +
+	"\x0euse_page_cache\x18\x05 \x01(\bR\fusePageCache\"h\n" +
 	"\vUserContext\x12\x10\n" +
 	"\x03uid\x18\x01 \x01(\rR\x03uid\x12\x10\n" +
 	"\x03gid\x18\x02 \x01(\rR\x03gid\x12\x1a\n" +
@@ -847,7 +872,7 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x05State\x12\x11\n" +
 	"\rSTATE_RUNNING\x10\x00\x12\x11\n" +
 	"\rSTATE_BLOCKED\x10\x01\x12\x0f\n" +
-	"\vSTATE_READY\x10\x02\"\xe8\x02\n" +
+	"\vSTATE_READY\x10\x02\"\xa8\x03\n" +
 	"\n" +
 	"MemoryView\x12(\n" +
 	"\x10user_buffer_data\x18\x01 \x01(\fR\x0euserBufferData\x12/\n" +
@@ -857,7 +882,10 @@ const file_io_simulation_proto_rawDesc = "" +
 	"\x13active_write_buffer\x18\x05 \x01(\x05R\x11activeWriteBuffer\x12,\n" +
 	"\x12active_read_buffer\x18\x06 \x01(\x05R\x10activeReadBuffer\x12#\n" +
 	"\rcurrent_chunk\x18\a \x01(\x05R\fcurrentChunk\x12!\n" +
-	"\ftotal_chunks\x18\b \x01(\x05R\vtotalChunks\"\x83\x02\n" +
+	"\ftotal_chunks\x18\b \x01(\x05R\vtotalChunks\x12\x1b\n" +
+	"\tcache_hit\x18\t \x01(\bR\bcacheHit\x12!\n" +
+	"\fcached_pages\x18\n" +
+	" \x01(\rR\vcachedPages\"\x83\x02\n" +
 	"\fHardwareView\x12!\n" +
 	"\fcmd_register\x18\x01 \x01(\tR\vcmdRegister\x12'\n" +
 	"\x0fstatus_register\x18\x02 \x01(\tR\x0estatusRegister\x12#\n" +

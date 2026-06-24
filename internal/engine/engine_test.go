@@ -55,8 +55,8 @@ func TestSubStepFlow_SingleBuffer(t *testing.T) {
 	if layerStepCounts["USER"] != 4 {
 		t.Errorf("USER layer: expected 4 sub-steps, got %d", layerStepCounts["USER"])
 	}
-	if layerStepCounts["VFS"] != 4 {
-		t.Errorf("VFS layer: expected 4 sub-steps, got %d", layerStepCounts["VFS"])
+	if layerStepCounts["VFS"] != 5 {
+		t.Errorf("VFS layer: expected 5 sub-steps, got %d", layerStepCounts["VFS"])
 	}
 	if layerStepCounts["DRV"] != 3 {
 		t.Errorf("DRV layer: expected 3 sub-steps, got %d", layerStepCounts["DRV"])

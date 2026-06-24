@@ -33,6 +33,7 @@ const cfgPath  = $('cfg-path');
 const cfgBytes = $('cfg-bytes');
 const cfgAddr  = $('cfg-addr');
 const cfgDblBuf = $('cfg-dblbuf');
+const cfgCache  = $('cfg-cache');
 const cfgFault  = $('cfg-fault');
 const cfgHost   = $('cfg-host');
 const autoSpeedSlider = $('auto-speed');
@@ -59,7 +60,7 @@ function triggerInit() {
     const addrStr = cfgAddr.value;
     const addr = addrStr.startsWith('0x') ? parseInt(addrStr, 16) : parseInt(addrStr, 10);
     const config = window.IOSim.newReadConfig(
-        cfgPath.value, parseInt(cfgBytes.value), addr, cfgDblBuf.checked
+        cfgPath.value, parseInt(cfgBytes.value), addr, cfgDblBuf.checked, cfgCache.checked
     );
     
     const userCtx = selUser.value === 'root' 
@@ -281,6 +282,24 @@ function onSnapshot(snapMsg) {
 
     if (snap.memoryState) {
         const mem = snap.memoryState;
+        // 页缓存状态
+        const cacheEl = $('cache-status');
+        if (cacheEl) {
+            if (mem.cacheHit) {
+                cacheEl.textContent = '✅ 命中';
+                cacheEl.className = 'cache-badge cache-hit';
+            } else if (mem.cachedPages > 0) {
+                cacheEl.textContent = '未命中 (' + mem.cachedPages + ' 页)';
+                cacheEl.className = 'cache-badge cache-miss';
+            } else if (cfgCache.checked) {
+                cacheEl.textContent = '空 (0 页)';
+                cacheEl.className = 'cache-badge cache-empty';
+            } else {
+                cacheEl.textContent = '已禁用';
+                cacheEl.className = 'cache-badge cache-off';
+            }
+        }
+
         updateKbuf($('kbuf1'), 1, mem);
         updateKbuf($('kbuf2'), 2, mem);
 
@@ -508,6 +527,7 @@ autoSpeedSlider.addEventListener('input', onSpeedChange);
 updateSpeedDisplay();
 cfgBytes.addEventListener('input', () => valBytes.textContent = cfgBytes.value);
 cfgDblBuf.addEventListener('change', () => $('lbl-dblbuf').textContent = cfgDblBuf.checked ? '双缓冲' : '单缓冲');
+cfgCache.addEventListener('change', () => $('lbl-cache').textContent = cfgCache.checked ? '页缓存' : '直读');
 
 // Debug 模式：显示自动连点按钮 + 速度控制器
 if (new URLSearchParams(window.location.search).get('debug') === '1') {

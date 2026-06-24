@@ -174,12 +174,13 @@ window.IOSim = {
         return cmd;
     },
 
-    newReadConfig(filePath, bytesToRead, userBufferAddr, useDoubleBuffer) {
+    newReadConfig(filePath, bytesToRead, userBufferAddr, useDoubleBuffer, usePageCache) {
         const cfg = new pb.ReadRequestConfig();
         cfg.setFilePath(filePath);
         cfg.setBytesToRead(bytesToRead);
         cfg.setUserBufferAddr(userBufferAddr);
         cfg.setUseDoubleBuffer(useDoubleBuffer);
+        cfg.setUsePageCache(!!usePageCache);
         return cfg;
     },
 
