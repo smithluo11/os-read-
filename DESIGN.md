@@ -139,7 +139,7 @@ I/O 通道是比 DMA 控制器更高阶的 I/O 管理单元。通道本身是一
 │  ├─ internal/engine/engine.go — 核心状态机引擎         │
 │  │   ├─ 五层递进推进 (NextStep)                       │
 │  │   ├─ 双缓冲乒乓切换控制器 (chunk 分块, A/B 交换)    │
-│  │   └─ 5 种故障注入 (EACCES/EFAULT/EIO/EPERM/ENOENT) │
+│  │   └─ 6 种故障注入 (EACCES/EFAULT/EIO/EPERM/ENOENT/EAGAIN) │
 │  ├─ internal/engine/filesystem.go — ACL 文件系统校验   │
 │  │   ├─ 路径穿越攻击检测 (.. 模式防御)                │
 │  │   ├─ Unix 权限位检查 (owner/group/other 9 位)      │
@@ -167,7 +167,7 @@ I/O 通道是比 DMA 控制器更高阶的 I/O 管理单元。通道本身是一
 
 ### 4.1 状态机引擎（`internal/engine/engine.go`）
 
-引擎采用 **层 + 子步骤** 双层状态机架构。每次 `NextStep()` 调用推进一个子步骤 (`SubStep`)，而非直接切换层。五个层每层 3-4 个子步骤，单缓冲完整流程 17 步，双缓冲 (4 chunk) 43 步。
+引擎采用 **层 + 子步骤** 双层状态机架构。每次 `NextStep()` 调用推进一个子步骤 (`SubStep`)，而非直接切换层。五个层共计 18 个子步骤（L0=4, L1=5, L2=3, L4=3, L3=3），单缓冲完整流程 18 步，双缓冲 (4 chunk) 约 42 步。
 
 ```
 L0 用户层 I/O 软件 (4 子步骤)
@@ -178,12 +178,13 @@ L0 用户层 I/O 软件 (4 子步骤)
         故障: 地址越界 + FAULT_INVALID_ADDRESS → EFAULT
   [4/4] 陷入内核: eax=NR_read, int 0x80 / sysenter, Ring3→Ring0
 
-L1 设备无关软件 VFS (4 子步骤)
-  [1/4] 路径解析: path → dentry → inode (dcache 查找)
-  [2/4] ACL 权限校验: 4 级管线 (路径穿越→文件存在→敏感文件→Unix 权限位)
+L1 设备无关软件 VFS (5 子步骤)
+  [1/5] 路径解析: path → dentry → inode (dcache 查找)
+  [2/5] ACL 权限校验: 4 级管线 (路径穿越→文件存在→敏感文件→Unix 权限位)
         故障: EACCES / EPERM / ENOENT 即时终止
-  [3/4] 缓冲分配: 单缓冲 vs 双缓冲 (ping-pong A/B, TotalChunks 计算)
-  [4/4] IRP 构造: IRP_READ → Dev:Disk0, 向驱动层提交
+  [3/5] 页缓存查找: 命中 → 直接返回数据 (跳过 L2/L4/L3); 未命中 → 继续磁盘 I/O
+  [4/5] 缓冲分配: 单缓冲 vs 双缓冲 (ping-pong A/B, TotalChunks 计算)
+  [5/5] IRP 构造: IRP_READ → Dev:Disk0, 向驱动层提交
 
 L2 设备驱动程序 (3 子步骤)
   [1/3] IRP 解析: 提取操作类型、设备、长度、数据块序号
@@ -269,11 +270,12 @@ L1 sub-step 3: 页缓存查找
 
 ```
 驱动尝试写 CMD_REG → 设备返回 DEVICE_BUSY (EAGAIN)
-  ├─ RetryCount < RetryMax(3) → 步进停在 sub-step 2，点击继续重试
+  ├─ RetryCount < RetryMax(3) → NextStep 通过 retrySubStep 标志跳过 SubStep 推进
+  │   停留在 sub-step 2，点击「下一步」继续重试
   └─ RetryCount >= RetryMax → 重试成功，正常编程寄存器，继续 I/O
 ```
 
-`SimulationEngine` 维护 `RetryCount` 和 `RetryMax`，`MemoryView` 含 `retry_count`/`retry_max` 字段供前端显示。
+`SimulationEngine` 维护 `RetryCount`、`RetryMax` 和 `retrySubStep` 布尔标志。`MemoryView` 含 `retry_count`/`retry_max` 字段供前端显示。`retrySubStep` 作为显式控制标志（而非直接操作 `SubStep` 数值），使 NextStep 的重试跳过逻辑自文档化。
 
 ### 4.3 gRPC-Web 双向流通信
 
@@ -302,7 +304,7 @@ Byte 2-5:   4 字节大端序 payload 长度
 Byte 6+:    protobuf 序列化数据
 ```
 
-这一层是项目最底层的通信基础设施，约 120 行代码，零第三方依赖。
+这一层是项目最底层的通信基础设施，197 行代码，零第三方依赖。
 
 ### 4.4 前端可视化
 
@@ -341,12 +343,16 @@ idle → request (IRP↓ 下行) → hardware (磁盘读取) → return (DATA↑
 
 状态颜色编码：SETUP(蓝) → TRANSFERRING(橙动画) → DONE(绿) → ERROR(红)。
 
-#### 自动连点速度控制与初始化/重置智能切换
+#### 自动连点速度控制与初始化/重置分离
 
-- **速度控制**：`auto-speed` 滑块 0-5 档映射 10/25/50/75/100/200ms，实时显示当前间隔。运行时调整速度自动重启定时器
+- **速度控制**：`auto-speed` 滑块 0-5 档映射 10/25/50/100/200/500ms，实时显示当前间隔。运行时调整速度自动重启定时器
 - **三态按钮**：「⚡ 自动连点」(播放) →「⏸ 暂停」→「▶ 继续」
-- **初始化/重置智能切换**：未连接时按钮文本「● 连接并初始化」；已连接后自动切换为「↺ 重置」，点击直接重新初始化无需断开
-- Debug 模式 (URL `?debug=1`) 显示自动连点按钮和速度滑块
+- **INIT / RESET 按钮分离**：
+  - 「● 连接并初始化」— 新建 WebSocket 连接 + INIT，后端 simEngine 为 nil → 全新引擎（不含缓存）
+  - 「↻ 重置 (保留缓存)」— 复用当前 stream 发送 INIT，后端 simEngine 仍在 → 自动继承旧页缓存
+  - 两个按钮通过 stream 作用域自然区分，无需后端额外标志位
+- 自动连点按钮和速度滑块始终可见（不再需要 `?debug=1`）
+- 阶段徽章（phase-badge）位于右侧步进控制区，与「下一步」/「自动连点」同一分组
 
 前端 JS 通过 `getBoundingClientRect()` 实时获取卡片在 Canvas 上的位置，而非依赖硬编码坐标，使得页面缩放时粒子动画仍然准确。
 
@@ -371,7 +377,7 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 
 - **输入/输出**：标注每层接收的数据格式和产出
 - **关键数据结构**：inode、file、IRP、DMA 描述符、中断向量表等
-- **操作步骤**：每层 6 步详细操作流程
+- **操作步骤**：各层按实际子步骤数展示（L0=4, L1=5, L2=3, L4=3, L3=3）
 - **伪代码**：带语法高亮的类 C 伪代码
 
 ---
@@ -382,9 +388,9 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 
 | 测试场景 | 配置 | 预期结果 |
 |---------|------|---------|
-| 单缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=off, user=user1 | 17 步子步骤完成，L0 4 步 (fd 表→access_ok→陷入内核)，I/O 完成后显示文件偏移量更新 |
-| 双缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=on, user=user1 | 约 25 步 (4KB×4 chunk)，乒乓切换可见，粒子动画触发，层卡片显示子步骤进度 |
-| 双缓冲 + 大文件 (65536B) | bytes=65536, dblbuf=on | 16 个 4KB chunk 完整传输 (7 + 16×9 = 151 步)，缓冲区 A/B 多次翻转 |
+| 单缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=off, user=user1 | 18 步子步骤完成，L0 4 步 (fd 表→access_ok→陷入内核)，I/O 完成后显示文件偏移量更新 |
+| 双缓冲 + 普通文件 | file=/home/user1/notes.txt, dblbuf=on, user=user1 | 约 42 步 (4KB×4 chunk)，乒乓切换可见，粒子动画触发，层卡片显示子步骤进度 |
+| 双缓冲 + 大文件 (65536B) | bytes=65536, dblbuf=on | 16 个 4KB chunk 完整传输 (约 138 步)，缓冲区 A/B 多次翻转 |
 
 ### 5.2 故障注入测试
 
@@ -409,9 +415,9 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 1. **阶段标签**：走完一次完整流程，验证顶部胶囊从「等待初始化」→「IRP ↓ 下行请求」→「💾 硬件磁盘读取」→「DATA ↑ 数据返回」→「✅ 完成」
 2. **DMA 面板**：硬件层激活时 DMA 4 寄存器可见，状态依次变化 SETUP→TRANSFERRING→DONE
 3. **速度控制**：自动连点 → 调整速度滑块 → 暂停 → 继续
-4. **重置按钮**：模拟完成后按钮显示「↺ 重置」→ 点击直接重新初始化
+4. **重置按钮**：模拟完成后按钮「↻ 重置 (保留缓存)」出现 → 点击复用当前 stream 重新初始化（页缓存继承），INIT 按钮单独点击则新建连接（全新引擎）
 
-### 5.3 权限边界测试
+### 5.5 权限边界测试
 
 | 测试条件 | 结果 |
 |---------|------|
@@ -420,7 +426,7 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 | user1 (uid=1000) 读 /home/user1/notes.txt (owner 文件) | 通过（owner read bit=4, 0644 允许） |
 | user1 (uid=1000) 读 /tmp/data.bin (other 可读) | 通过（other read bit=4, 0666 允许） |
 
-### 5.4 前端集成测试
+### 5.6 前端集成测试
 
 1. **连接状态机联动**：点击「连接并初始化」→ 状态灯变绿 → 按钮自动启用
 2. **单步 / 自动连点**：逐步点击验证每层卡片高亮正确；自动连点 50ms 间隔无卡顿
@@ -451,7 +457,7 @@ const alpha = t < 0.15 ? t/0.15 : t > 0.85 ? (1-t)/0.15 : 1;
 
 同时需要处理：WebSocket 首帧 ASCII header 块（`Content-Type: application/grpc-web+proto`）、消息队列（在 WebSocket 握手完成前缓存）、粘包/半包缓冲（`parserBuf` 累加 + 逐帧解析）。
 
-**价值**：约 120 行代码替代了 2 万行的 npm 依赖，且对整个通信路径有了完全的控制权。
+**价值**：197 行代码替代了 2 万行的 npm 依赖，且对整个通信路径有了完全的控制权。
 
 ### 6.2 Canvas 粒子动画坐标系统
 
@@ -510,7 +516,7 @@ function getElementCenter(el) {
 
 ### 6.7 前端动画与状态同步的时序
 
-**问题**：双缓冲乒乓切换触发粒子动画时，需要确保 Canvas 已 resize 到当前尺寸，且目标 DOM 元素的位置已随 React/SVG 布局更新完成。
+**问题**：双缓冲乒乓切换触发粒子动画时，需要确保 Canvas 已 resize 到当前尺寸，且目标 DOM 元素的位置已随布局更新完成。
 
 **解决方案**：粒子动画在 `onSnapshot` 回调中触发（而非独立定时器），这保证了粒子生成时 DOM 状态与快照一致。`spawnParticles()` 内部首先调用 `resizeCanvas()` 同步尺寸，然后通过 `getBoundingClientRect()` 抓取最新位置，消除时序竞态。
 
@@ -548,7 +554,7 @@ io-sim-server (systemd, 127.0.0.1:18083)
 │   │   ├── engine.go               # 状态机引擎 (644 行, 子步骤 + 页缓存 + EAGAIN + DMA)
 │   │   ├── engine_test.go          # 引擎测试 (652 行, 22 个场景)
 │   │   └── filesystem.go           # ACL 文件校验管线 (132 行, 4 级校验)
-│   └── service/handler.go          # gRPC 双向流处理 (88 行)
+│   └── service/handler.go          # gRPC 双向流处理 (110 行, 含跨 INIT 页缓存持久化)
 ├── web/src/
 │   ├── index.html                  # 主页: 五层拓扑图 + DMA 面板 + 阶段标签
 │   ├── detail.html                 # 层级详情页: 逐层剖析
@@ -564,16 +570,19 @@ io-sim-server (systemd, 127.0.0.1:18083)
 
 ---
 
-## 九、小组分工（8 人）
+## 九、小组分工（7 模块）
 
-| 角色 | 人数 | 负责内容 |
-|------|------|---------|
-| 状态机引擎 | 2 | `internal/engine/` — 五层递进状态机、双缓冲乒乓切换控制器、chunk 分块 DMA 调度、5 类故障注入 |
-| 文件系统校验 | 1 | `internal/engine/filesystem.go` — ACL 权限检查管线（路径穿越防御、Unix 权限位、敏感文件保护） |
-| Proto 定义与通信 | 1 | `api/proto/` Protobuf 消息定义、gRPC-Web 双向流对接、WebSocket 帧格式编解码 |
-| 前端可视化 | 2 | SVG 五层拓扑图 + 6 条有向连线动画、Canvas 粒子系统、手风琴状态面板、层级详情页、交互控制逻辑 |
-| 前端样式与布局 | 1 | 6:4 宽屏 CSS Grid 排版、浅色实验室主题、响应式适配、多页面导航、卡片居中定位体系 |
-| 部署与文档 | 1 | 跨平台编译 + systemd + NPM 云端部署、README、DESIGN 设计文档、答辩 PPT、现场 Demo |
+> 详见 [TEAM.md](./TEAM.md) — 每个模块的详细职责、涉及文件、答辩关键词和模块间依赖关系。
+
+| 编号 | 模块 | 难度 | 核心文件 |
+|------|------|------|---------|
+| [A] | 状态机引擎核心 | ★★★★ | `engine.go` (644 行, 18 子步骤, 6 故障注入, 页缓存, EAGAIN, DMA) |
+| [B] | 文件系统校验与 ACL | ★★★ | `filesystem.go` (132 行, 4 级安全管线) |
+| [C] | Proto 协议与 gRPC-Web 通信 | ★★★★ | `io_simulation.proto` + `handler.go` + `grpc-entry.js` |
+| [D] | 前端拓扑图与 SVG 连线动画 | ★★★ | `index.html` SVG 五层拓扑 + 阶段可视化 + DMA 面板 |
+| [E] | 前端快照渲染与交互控制 | ★★★ | `app.js` (555 行, 阶段状态机 + 粒子动画 + 自动连点) |
+| [F] | 前端样式体系与层级详情页 | ★★ | `style.css` (750 行) + `detail.html` (381 行) |
+| [G] | 部署运维、测试与答辩 PPT | ★★ | Makefile + TEST.md + API.md + 云端部署 |
 
 ---
 

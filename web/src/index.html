@@ -95,9 +95,9 @@
 <header class="top-control-bar">
   <div class="ctrl-group ctrl-connect">
     <span class="logo">IO::SIM</span>
-    <span id="phase-badge" class="phase-badge header-badge">⏳ 等待初始化</span>
     <input type="text" id="cfg-host" class="inp" value="" placeholder="后端地址 (留空=当前域名)">
     <button id="btn-init" class="btn btn-primary">● 连接并初始化</button>
+    <button id="btn-reset" class="btn btn-reset hidden">↻ 重置 (保留缓存)</button>
     <span id="conn-status" class="conn-status disconnected">未连接</span>
   </div>
 
@@ -143,6 +143,7 @@
   </div>
 
   <div class="ctrl-group ctrl-step">
+    <span id="phase-badge" class="phase-badge header-badge">⏳ 等待初始化</span>
     <button id="btn-step" class="btn" disabled>▶ 下一步</button>
     <button id="btn-autoplay" class="btn btn-warn hidden">⚡ 自动连点</button>
     <div class="auto-speed-group hidden" id="auto-speed-group">

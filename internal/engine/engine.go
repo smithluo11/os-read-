@@ -42,8 +42,9 @@ type SimulationEngine struct {
 	CacheMissed bool              // 当前读是否缓存未命中 (用于 ISR 完成后回写)
 
 	// EAGAIN 重试状态
-	RetryCount uint32
-	RetryMax   uint32
+	RetryCount   uint32
+	RetryMax     uint32
+	retrySubStep bool // NextStep 中跳过 SubStep 推进（EAGAIN 重试用）
 }
 
 // NewEngine 初始化一次全新的 read 模拟
@@ -123,8 +124,11 @@ func (e *SimulationEngine) NextStep() (*pb.SystemSnapshot, error) {
 		return e.Snapshot, errors.New("simulation already finished")
 	}
 
-	// 推进子步骤
-	e.SubStep++
+	// 推进子步骤（EAGAIN 重试期间跳过推进，停留在当前子步骤）
+	if !e.retrySubStep {
+		e.SubStep++
+	}
+	e.retrySubStep = false
 	e.Snapshot.SubStep = e.SubStep
 
 	switch e.CurrentLayer {
@@ -387,7 +391,7 @@ func (e *SimulationEngine) executeDriverLayer() {
 				"【设备忙 重试 %d/%d】EAGAIN — 设备控制器暂时不可用。"+
 					"驱动程序重试写入设备寄存器。点击「▶ 下一步」继续重试。",
 				e.RetryCount, e.RetryMax)
-			e.SubStep = 1 // 保持 sub-step 2 (NextStep +1 = 2)
+			e.retrySubStep = true // 下次 NextStep 跳过 SubStep++，停留在子步骤 2
 			return
 		}
 		// 重试耗尽：设备就绪，继续正常编程

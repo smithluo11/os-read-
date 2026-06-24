@@ -25,7 +25,8 @@ const phaseMeta = {
 
 // ---- DOM refs ----
 const $ = (id) => document.getElementById(id);
-const btnInit  = $('btn-init'); // 合并了 Connect 与 Init 的功能
+const btnInit  = $('btn-init');
+const btnReset = $('btn-reset');
 const btnStep  = $('btn-step');
 const btnAuto  = $('btn-autoplay');
 const selUser  = $('sel-user');
@@ -78,39 +79,35 @@ function triggerInit() {
 
 function updateInitButton() {
     const connected = streamHandle && connStatus.textContent.includes('Connected');
-    btnInit.textContent = connected ? '↻ 重新初始化' : '● 连接并初始化';
-    // 已连接时给按钮增加重置样式提示
-    if (connected) {
-        btnInit.classList.add('btn-reset');
-    } else {
-        btnInit.classList.remove('btn-reset');
+    // INIT: always shows as connect/init (clean start)
+    btnInit.textContent = connected ? '● 重新连接' : '● 连接并初始化';
+    // RESET: only visible when connected, preserves cache
+    if (btnReset) {
+        btnReset.classList.toggle('hidden', !connected);
     }
 }
 
 function connectAndInit() {
     const host = cfgHost.value.trim() || window.location.origin;
-    
-    // 如果已经连接，直接发起重新初始化（重置按钮功能）
-    if (streamHandle && connStatus.textContent.includes('Connected')) {
-        log('重新初始化模拟...');
-        triggerInit();
-        return;
-    }
+
+    // 始终建立新连接 = 全新引擎（不保留旧缓存）
+    if (streamHandle) { try { streamHandle.close(); } catch(e) {} }
+    streamHandle = null;
+    prevSnap = null;
 
     log(`正在连接后端: ${host}...`);
     connStatus.textContent = '连接中...';
     connStatus.className = 'conn-status disconnected';
-    
+
     try {
-        if (streamHandle) { try { streamHandle.close(); } catch(e) {} }
         streamHandle = window.IOSim.connect(host);
-        
+
         streamHandle.onOpen(function () {
             connStatus.textContent = '● Connected';
             connStatus.className = 'conn-status connected';
             updateInitButton();
-            log('握手完成，开始初始化模拟...');
-            triggerInit(); // 连接成功后自动触发 Init
+            log('握手完成，开始全新初始化...');
+            triggerInit();
         });
         streamHandle.onSnapshot(onSnapshot);
         streamHandle.onError(function (e) {
@@ -131,6 +128,17 @@ function connectAndInit() {
         connStatus.textContent = '● Disconnected';
         updateInitButton();
     }
+}
+
+// 重置：复用当前 stream，后端 simEngine 仍在 → 自动继承旧页缓存
+function triggerReset() {
+    if (!streamHandle || !connStatus.textContent.includes('Connected')) {
+        log('尚未连接，请先点击「连接并初始化」');
+        return;
+    }
+    clearAutoPlay();
+    log('重新初始化（保留页缓存）...');
+    triggerInit();
 }
 
 function send(cmd) {
@@ -548,7 +556,8 @@ function log(msg) {
 }
 
 // ---- Event bindings ----
-btnInit.addEventListener('click', connectAndInit); // 按钮整合：点击一次连接+Init
+btnInit.addEventListener('click', connectAndInit); // 全新连接 + 初始化（不保留缓存）
+btnReset.addEventListener('click', triggerReset);   // 复用 stream 重置（保留页缓存）
 btnStep.addEventListener('click', doStep);
 btnAuto.addEventListener('click', toggleAutoPlay);
 autoSpeedSlider.addEventListener('input', onSpeedChange);
