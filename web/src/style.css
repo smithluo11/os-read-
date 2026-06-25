@@ -395,7 +395,7 @@ select.sel {
 
 .topo-svg {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 1;
+    pointer-events: none; z-index: 1; overflow: visible;
 }
 
 /* ============================================================
@@ -619,19 +619,21 @@ select.sel {
     z-index: 30;
 }
 
-/* HW + INT row — synced to 500px (matches HTML inline) */
+/* HW + INT row — 几何与原 index.html 内联保持一致（宽 680、居中、两端对齐），
+   与 conn-d-h / conn-h-i / conn-i-d 连线坐标耦合，勿随意改动 */
 .hw-int-row {
-    position: absolute; top: 500px; left: 0; right: 0; height: auto;
-    display: flex; justify-content: center; align-items: flex-start; gap: 20px;
+    position: absolute; top: 500px; left: 50%; transform: translateX(-50%);
+    width: 680px; height: auto; z-index: 10;
+    display: flex; justify-content: space-between; align-items: flex-start;
 }
 
 /* ============================================================
    BUFFER BOXES
    ============================================================ */
 
-.buffers-row { display:flex; gap:6px; margin-top:8px; }
+.buffers-row { display:flex; gap:10px; margin-top:12px; width:100%; }
 .kbuf {
-    flex:1; padding:8px 10px;
+    flex:1; overflow:hidden; padding:10px 8px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--bg-card);
@@ -670,7 +672,7 @@ select.sel {
     width:100%; height:4px;
     background: var(--bg-card);
     border-radius: 2px;
-    margin-top:8px; overflow:hidden;
+    margin-top:12px; overflow:hidden;
     border: 1px solid var(--border-light);
 }
 .pbar-fill {
@@ -689,7 +691,7 @@ select.sel {
    REGISTERS
    ============================================================ */
 
-.regs { margin-top:6px; }
+.regs { margin-top:12px; }
 .regs code {
     display:block; font-size: 9px;
     color: var(--ink-muted);
@@ -703,6 +705,7 @@ select.sel {
 
 .dma-panel {
     width: 100%;
+    margin-top: 10px;
 }
 .dma-grid {
     display: grid;
@@ -951,11 +954,109 @@ select.sel {
 }
 
 /* ============================================================
+   MAIN PAGE LAYOUT  (从 index.html 内联 <style> 归并，去除 !important)
+   ============================================================ */
+
+.main-grid {
+    display: grid;
+    grid-template-columns: 6fr 4fr;   /* 左右 6:4 宽屏比例 */
+    gap: 24px;
+    padding: 24px;
+    margin: 0;
+    height: calc(100vh - 96px - 32px); /* 顶部双行栏 ~96px + 底部链接 32px */
+    box-sizing: border-box;
+}
+
+.panel-visual,
+.panel-info {
+    height: 100%;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    background: var(--bg-panel);
+    box-sizing: border-box;
+}
+
+/* 左侧：OS 架构演示区居中 */
+.panel-visual {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(180deg, #fafbfd 0%, #f5f6f8 50%, #fafbfd 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+/* 右侧信息面板：弹性纵向布局 */
+.panel-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.panel-info .info-card { margin: 0; }
+.info-card.log-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.info-card.log-card .log-scroll {
+    flex: 1;
+    max-height: none;
+    height: 0;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-right: 4px;
+}
+
+/* —— 拓扑几何坐标（集中管理）——
+   ⚠ 与 index.html 内 <svg viewBox="0 0 720 750"> 的连线端点坐标强耦合：
+   anchor 为 720×750，SVG 与 CSS 像素 1:1 映射；改动任一卡片的 top/left/width，
+   必须同步调整对应 conn-* 连线坐标，否则连线 / 粒子飞行会错位。 */
+:root {
+    --topo-w: 720px;
+    --topo-h: 750px;
+}
+.topo-anchor {
+    position: relative;
+    width: var(--topo-w);
+    height: var(--topo-h);
+    flex-shrink: 0;
+}
+/* 三个垂直居中层（居中由 .layer-card 基础规则的 transform:translateX(-50%) 接管） */
+#layer-USER { top: 0;     left: 50%; width: 500px; } /* ↘ conn-u-v (y=55→140) */
+#layer-VFS  { top: 140px; left: 50%; width: 560px; } /* conn-u-v↘ · conn-v-d↗(y=260) */
+#layer-DRV  { top: 340px; left: 50%; width: 500px; } /* conn-v-d↘ · conn-d-h/h-i 起点 y=420 */
+/* L4 硬件 / L3 中断为 .hw-int-row（top:500），见上方 hw-int-row 规则 */
+
+/* 数据返回标签固定为钴蓝（明暗 opacity 由 app.js 运行时控制） */
+#data-label { color: var(--cobalt); }
+
+/* 信息面板内若干元素的固定样式（从内联归并） */
+#proc-wait    { margin-top: 4px; color: var(--amber); }
+#ubuf-display { min-height: 80px; }
+#retry-info   { display: none; margin-top: 6px; color: var(--amber); }
+
+/* 站点页脚（从内联归并） */
+.site-footer {
+    text-align: center;
+    padding: 8px 24px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+}
+.site-footer a { color: var(--phosphor); text-decoration: none; }
+.site-footer a:hover { text-decoration: underline; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 
 @media (max-width: 1100px) {
-    .main-grid { grid-template-columns: 1fr !important; }
+    .main-grid { grid-template-columns: 1fr; }
     .topo-anchor { width: 360px; height: 600px; }
     .layer-card { max-width: 280px; }
 }
@@ -981,4 +1082,39 @@ select.sel {
 ::selection {
     background: var(--phosphor-soft);
     color: var(--phosphor-dim);
+}
+
+/* ============================================================
+   FLOW POLISH — 相位过渡 · 接力余辉 · 减少动态效果
+   (2026 优化：仅新增，未改动既有规则，不触碰 app.js 契约)
+   ============================================================ */
+
+/* 相位标签明暗由 app.js 改 inline opacity，加过渡消除硬跳 */
+#irp-label, #irq-label, #data-label {
+    transition: opacity 0.25s ease;
+}
+
+/* 逐层接力余辉：活动层切走后短暂保留并渐隐，形成“脉冲穿过”观感 */
+.layer-card.relay-trail {
+    animation: relay-fade 0.6s ease-out forwards;
+}
+@keyframes relay-fade {
+    from {
+        border-color: var(--phosphor);
+        box-shadow: 0 0 18px var(--phosphor-glow), var(--shadow-md);
+    }
+    to {
+        border-color: var(--border);
+        box-shadow: 0 0 0 transparent, var(--shadow-sm);
+    }
+}
+
+/* 系统“减少动态效果”：中和所有装饰性动画/过渡，保留可用性 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
 }

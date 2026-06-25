@@ -8,87 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<style>
-  /* ====== 终极排版重写：宽屏 7:3 版 ====== */
-  
-  .main-grid {
-    display: grid !important;
-    grid-template-columns: 6fr 4fr !important; /* 6:4 宽屏比例 */
-    gap: 24px !important;
-    padding: 24px !important;
-    max-width: none !important; /* 彻底释放宽度 */
-    margin: 0 !important;
-    height: calc(100vh - 96px - 32px) !important; /* 顶部双行栏~96px + 底部链接32px */
-    box-sizing: border-box;
-  }
-
-  .panel-visual, .panel-info {
-    height: 100% !important;
-    padding: 20px !important;
-    border-radius: 12px;
-    border: 1px solid var(--border) !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    background: var(--bg-panel) !important;
-    box-sizing: border-box;
-  }
-
-  /* 左侧：OS 架构演示区居中 */
-  .panel-visual {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: linear-gradient(180deg, #fafbfd 0%, #f5f6f8 50%, #fafbfd 100%);
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* 右侧信息面板：弹性纵向布局 */
-  .panel-info {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 12px !important;
-  }
-  .info-card { margin: 0 !important; }
-  .info-card.log-card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .info-card.log-card .log-scroll {
-    flex: 1;
-    max-height: none !important;
-    height: 0;
-    overflow-y: auto;
-    margin-top: 10px;
-    padding-right: 4px;
-  }
-
-  /* 放大拓扑坐标系 */
-  .topo-anchor {
-    position: relative;
-    width: 720px;  /* 层级卡片再次放大 */
-    height: 750px;
-    flex-shrink: 0;
-  }
-
-  .site-footer {
-    text-align: center;
-    padding: 8px 24px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--ink-dim);
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border);
-  }
-  .site-footer a {
-    color: var(--phosphor);
-    text-decoration: none;
-  }
-  .site-footer a:hover {
-    text-decoration: underline;
-  }
-</style>
 </head>
 <body>
 
@@ -161,7 +80,7 @@
 <div class="main-grid">
   <main class="panel-visual">
     <div class="topo-anchor">
-      <svg class="topo-svg" viewBox="0 0 720 750" style="position:absolute; inset:0; width:100%; height:100%; overflow:visible;">
+      <svg class="topo-svg" viewBox="0 0 720 750">
         <defs>
           <filter id="glow-active"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
@@ -178,33 +97,33 @@
 
         <foreignObject x="245" y="150" width="140" height="24"><div class="conn-label" id="irp-label">IRP ↓</div></foreignObject>
         <foreignObject x="530" y="470" width="90" height="24"><div class="conn-label" id="irq-label">IRQ ↑</div></foreignObject>
-        <foreignObject x="400" y="150" width="120" height="24"><div class="conn-label" id="data-label" style="color:var(--cobalt);">DATA ↑</div></foreignObject>
+        <foreignObject x="400" y="150" width="120" height="24"><div class="conn-label" id="data-label">DATA ↑</div></foreignObject>
       </svg>
 
 
-      <div class="layer-card" id="layer-USER" style="position:absolute; top:0px; left:50%; transform:translateX(-50%); width:500px;">
+      <div class="layer-card" id="layer-USER">
         <span class="layer-tag">L0</span><span class="layer-name">用户层 I/O 软件</span><span class="layer-sub">sys_read(fd, buf, len)</span><span class="layer-steps"></span>
       </div>
 
-      <div class="layer-card" id="layer-VFS" style="position:absolute; top:140px; left:50%; transform:translateX(-50%); width:560px;">
+      <div class="layer-card" id="layer-VFS">
         <span class="layer-tag">L1</span><span class="layer-name">设备无关软件 (VFS)</span><span class="layer-sub" id="vfs-desc">等待系统调用...</span><span class="layer-steps"></span>
         <span class="cache-badge cache-off" id="cache-status">已禁用</span>
-        <div class="buffers-row" id="vfs-buffers" style="display:flex; gap:10px; margin-top:12px; width:100%;">
-          <div class="kbuf" id="kbuf1" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
-          <div class="kbuf" id="kbuf2" style="flex:1; overflow:hidden; padding:10px 8px;"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
+        <div class="buffers-row" id="vfs-buffers">
+          <div class="kbuf" id="kbuf1"><span class="kbuf-label">缓冲 A</span><span class="kbuf-data"></span></div>
+          <div class="kbuf" id="kbuf2"><span class="kbuf-label">缓冲 B</span><span class="kbuf-data"></span></div>
         </div>
       </div>
 
-      <div class="layer-card" id="layer-DRV" style="position:absolute; top:340px; left:50%; transform:translateX(-50%); width:500px;">
+      <div class="layer-card" id="layer-DRV">
         <span class="layer-tag">L2</span><span class="layer-name">设备驱动程序</span><span class="layer-sub" id="drv-desc">等待 IRP...</span><span class="layer-steps"></span>
-        <div class="pbar-wrap" style="margin-top:12px;"><div class="pbar-fill" id="pbar"></div></div>
+        <div class="pbar-wrap"><div class="pbar-fill" id="pbar"></div></div>
         <span class="chunk-stat" id="chunk-stat">0 / 1</span>
       </div>
 
-      <div class="hw-int-row" style="position:absolute; top:500px; left:50%; transform:translateX(-50%); width:680px; display:flex; justify-content:space-between; z-index:10;">
+      <div class="hw-int-row">
         <div class="layer-card hw-card" id="layer-HW">
           <span class="layer-tag">L4</span><span class="layer-name">硬件层 (磁盘控制器)</span><span class="layer-sub">DMA 数据读取</span><span class="layer-steps"></span>
-          <div class="dma-panel" style="margin-top:10px;">
+          <div class="dma-panel">
             <div class="dma-grid">
               <div class="dma-cell">
                 <span class="dma-label">源地址</span>
@@ -231,11 +150,11 @@
         </div>
         <div class="layer-card int-card" id="layer-INT">
           <span class="layer-tag">L3</span><span class="layer-name">中断处理程序 (ISR)</span><span class="layer-sub">ISR 中断服务</span><span class="layer-steps"></span>
-          <div class="regs" style="margin-top:12px;"><code id="int-state">等待 IRQ...</code></div>
+          <div class="regs"><code id="int-state">等待 IRQ...</code></div>
         </div>
       </div>
 
-      <canvas id="particle-canvas" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:20;"></canvas>
+      <canvas id="particle-canvas"></canvas>
     </div>
   </main>
 
@@ -245,14 +164,14 @@
       <div class="accordion-body">
         <code>PID: <span id="proc-pid">8888</span></code>
         <code>状态: <span id="proc-state" class="badge badge-running">运行中</span></code>
-        <code id="proc-wait" style="margin-top: 4px; color: var(--amber);"></code>
+        <code id="proc-wait"></code>
       </div>
     </div>
 
     <div class="info-card accordion">
       <h3 class="accordion-header">用户缓冲区 (User Space) <span class="accordion-arrow">▸</span></h3>
       <div class="accordion-body">
-        <div class="ubuf-scroll" id="ubuf-display" style="min-height: 80px;"></div>
+        <div class="ubuf-scroll" id="ubuf-display"></div>
         <code>已接收长度: <span id="ubuf-len">0</span> 字节</code>
       </div>
     </div>
@@ -261,7 +180,7 @@
       <h3 class="accordion-header">内核差错控制台 <span class="accordion-arrow">▾</span></h3>
       <div class="accordion-body">
         <code id="err-msg">等待指令...</code>
-        <code id="retry-info" style="display:none; margin-top:6px; color:var(--amber);"></code>
+        <code id="retry-info"></code>
       </div>
     </div>
 

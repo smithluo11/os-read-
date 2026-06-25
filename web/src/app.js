@@ -210,6 +210,16 @@ function onSnapshot(snapMsg) {
 
     const activeLayer = layerMap[snap.currentActiveLayer] || 'USER';
 
+    // 逐层接力：活动层发生切换时，给刚离开的层挂一段渐隐余辉 → “脉冲穿过”观感
+    const prevActiveLayer = prevSnap ? (layerMap[prevSnap.currentActiveLayer] || 'USER') : null;
+    if (prevActiveLayer && prevActiveLayer !== activeLayer) {
+        const leftCard = $(`layer-${prevActiveLayer}`);
+        if (leftCard) {
+            leftCard.classList.add('relay-trail');
+            setTimeout(() => leftCard.classList.remove('relay-trail'), 600);
+        }
+    }
+
     // 清除所有层卡片状态，高亮当前活动层
     document.querySelectorAll('.layer-card').forEach(el => el.classList.remove('active','error','phase-request','phase-return'));
     const card = $(`layer-${activeLayer}`);
@@ -477,50 +487,63 @@ function onSpeedChange() {
     }
 }
 
-// ---- Particle System (动态计算坐标核心逻辑) ----
+// ---- Particle System: DPR-aware · 有限寿命 · 发光拖尾数据流 ----
 let particles = [];
 let rafId = null;
+let dpr = 1;
+const PARTICLE_COUNT = 14;
+const REDUCE_MOTION = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// 画布按设备像素比放大，再用 CSS 缩回 → 视网膜屏粒子不再发虚
 function resizeCanvas() {
     const parent = canvas.parentElement;
     if (!parent) return;
-    canvas.width = parent.clientWidth;
-    canvas.height = parent.clientHeight;
+    dpr = window.devicePixelRatio || 1;
+    const w = parent.clientWidth, h = parent.clientHeight;
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width  = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 之后一律用 CSS 像素绘制
 }
 window.addEventListener('resize', resizeCanvas);
 
-// 获取任意元素相对于 Canvas 的中心坐标
-function getElementCenter(el) {
+// 获取任意元素相对于 Canvas 的中心坐标（传入已缓存的 canvasRect 避免重复 reflow）
+function getElementCenter(el, canvasRect) {
     if (!el) return { x: 0, y: 0 };
     const rect = el.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
+    const cr = canvasRect || canvas.getBoundingClientRect();
     return {
-        x: rect.left - canvasRect.left + rect.width / 2,
-        y: rect.top - canvasRect.top + rect.height / 2
+        x: rect.left - cr.left + rect.width / 2,
+        y: rect.top - cr.top + rect.height / 2
     };
 }
 
 function spawnParticles(targetBuf) {
     cancelParticles();
+    if (REDUCE_MOTION) return; // 尊重系统“减少动态效果”
     resizeCanvas();
     const hwCard = $('layer-HW');
     const targetEl = targetBuf === 1 ? $('kbuf1') : $('kbuf2');
     if (!hwCard || !targetEl) return;
 
-    // 直接从 DOM 实时抓取起终点，彻底解决页面缩放导致的错位
-    const start = getElementCenter(hwCard);
-    const end = getElementCenter(targetEl);
-    
-    // 微调起点：从硬件卡的上方发出
-    const sx = start.x;
-    const sy = start.y - 30; 
-    const ex = end.x;
-    const ey = end.y;
-    const mx = (sx + ex) / 2 + 50; // 贝塞尔控制点往右偏
-    const my = (sy + ey) / 2;
+    // 卡片在一次动画期间不移动 → 起终点只测量一次，逐帧零 reflow
+    const canvasRect = canvas.getBoundingClientRect();
+    const start = getElementCenter(hwCard, canvasRect);
+    const end   = getElementCenter(targetEl, canvasRect);
+    const sx = start.x, sy = start.y - 30; // 从硬件卡上沿发出
+    const ex = end.x,   ey = end.y;
+    const mx = (sx + ex) / 2 + 50, my = (sy + ey) / 2; // 贝塞尔控制点右偏
 
-    for (let i = 0; i < 5; i++) {
-        particles.push({ t: i / 5, speed: 0.005 + Math.random() * 0.005 });
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push({
+            t: -i * 0.06,                        // 负值错峰发射 → 连续“流”而非一团
+            speed: 0.016 + Math.random() * 0.012,
+            r: 2 + Math.random() * 1.6,
+            jitter: (Math.random() - 0.5) * 16   // 横向散开量
+        });
     }
     rafId = requestAnimationFrame(() => particleLoop(sx, sy, mx, my, ex, ey));
 }
@@ -531,21 +554,41 @@ function cancelParticles() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
+function bz(a, b, c, t) { const m = 1 - t; return m * m * a + 2 * m * t * b + t * t * c; }
+
 function particleLoop(sx, sy, mx, my, ex, ey) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach(p => {
+    let alive = false;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter'; // 叠加 → 重叠处自然增亮
+    for (const p of particles) {
         p.t += p.speed;
-        if (p.t > 1) p.t -= 1;
-        const mt = 1 - p.t;
-        const x = mt * mt * sx + 2 * mt * p.t * mx + p.t * p.t * ex;
-        const y = mt * mt * sy + 2 * mt * p.t * my + p.t * p.t * ey;
-        const alpha = p.t < 0.15 ? p.t / 0.15 : p.t > 0.85 ? (1 - p.t) / 0.15 : 1;
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(8,145,178,${alpha * 0.7})`;
-        ctx.fill();
-    });
-    rafId = requestAnimationFrame(() => particleLoop(sx, sy, mx, my, ex, ey));
+        if (p.t >= 1) continue;            // 跑完一程即消亡
+        alive = true;
+        if (p.t < 0) continue;             // 尚未发射
+        // 头部 + 3 段拖尾回声
+        for (let k = 0; k <= 3; k++) {
+            const tt = p.t - k * 0.05;
+            if (tt < 0 || tt > 1) continue;
+            const env = Math.sin(Math.PI * tt);          // 0→1→0 包络
+            const x = bz(sx, mx, ex, tt) + p.jitter * env * (k === 0 ? 1 : 0.5);
+            const y = bz(sy, my, ey, tt);
+            const fade = tt < 0.12 ? tt / 0.12 : tt > 0.88 ? (1 - tt) / 0.12 : 1;
+            const a = fade * (k === 0 ? 0.9 : 0.16 * (4 - k));
+            ctx.beginPath();
+            ctx.arc(x, y, p.r * (k === 0 ? 1 : 0.6), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(34,170,200,${a})`;
+            ctx.shadowColor = 'rgba(8,145,178,0.9)';
+            ctx.shadowBlur = k === 0 ? 8 : 0;             // 仅头部发光，省开销
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+    if (alive) {
+        rafId = requestAnimationFrame(() => particleLoop(sx, sy, mx, my, ex, ey));
+    } else {
+        cancelParticles(); // 全部到达 → 停止 RAF 并清屏，空闲不再占用 CPU
+    }
 }
 
 function log(msg) {
