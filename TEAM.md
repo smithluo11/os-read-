@@ -109,7 +109,7 @@
 
 ## [E] 前端快照渲染与交互控制
 
-**文件**: `web/src/app.js`（555 行）
+**文件**: `web/src/app.js`（638 行）
 
 **负责内容**:
 - **`onSnapshot` 快照渲染函数**：将 SystemSnapshot protobuf 映射到 DOM 更新
@@ -138,7 +138,7 @@
 
 ## [F] 前端样式体系与层级详情页
 
-**文件**: `web/src/style.css`（750 行）+ `web/src/detail.html`（381 行）
+**文件**: `web/src/style.css`（1120 行）+ `web/src/detail.html`（381 行）
 
 **负责内容**:
 - **CSS 变量设计体系**：颜色令牌（`--phosphor` / `--cobalt` / `--amber` / `--cyan` / `--ink` / `--green`）、背景（`--bg-panel` / `--bg-deep` / `--bg-card`）、边框（`--border` / `--border-light`）、阴影（`--shadow-sm`）
@@ -207,7 +207,7 @@
 1. 每人在群里报两个志愿（第一志愿 + 第二志愿），组长根据志愿分配
 2. 认领后请阅读对应代码文件，不理解的地方随时问组长
 3. 答辩时每个人需要能讲清楚自己模块的**设计思路**和**与 OS 课本知识的对应关系**
-4. 模块 C（通信层）和 A（引擎核心）难度较高，建议有 Go/网络编程基础的同学选。模块 E 代码量最大（555 行）但逻辑清晰
+4. 模块 C（通信层）和 A（引擎核心）难度较高，建议有 Go/网络编程基础的同学选。模块 E 代码量最大（638 行）但逻辑清晰
 5. 模块 F 和 G 难度较低但答辩需要展示视觉/文档成果
 
 ---
@@ -219,7 +219,7 @@
 | 项目架构 | 前后端分离 + gRPC-Web 双向流 + 五层子步骤状态机的整体设计 |
 | Go 后端 | `cmd/server/`、`internal/engine/engine.go`（644 行，18 子步骤）、`internal/engine/filesystem.go`（132 行）、`internal/service/handler.go`（102 行）全部代码 |
 | Proto 定义 | `api/proto/io_simulation.proto`（9 message + 6 FaultType）+ `make proto` 代码生成 |
-| 前端 | `index.html`、`style.css`、`app.js`（555 行）、`grpc-entry.js`（197 行）、`detail.html`（295 行）全部代码 |
+| 前端 | `index.html`、`style.css`、`app.js`（638 行）、`grpc-entry.js`（197 行）、`detail.html`（381 行）全部代码 |
 | 测试 | `engine_test.go`（652 行，22 场景）+ `TEST.md`（22 测试用例 + 5 分钟回归清单）|
 | 部署 | 跨平台编译 + 云端部署流程 + systemd + NPM 配置 |
 | 文档 | `README.md` + `DESIGN.md` + `API.md` + `TEST.md` + `TEAM.md` |
